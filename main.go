@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"hash/fnv"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -219,10 +218,8 @@ func hookDetails(resp *http.Response) error {
 	if strings.HasPrefix(resp.Request.URL.Path, "/emby/Users/") && strings.HasSuffix(resp.Request.URL.Path, "/Items") {
 		// get parentId
 		parentId := resp.Request.URL.Query().Get("ParentId")
-		log.Println("parentId", parentId)
 		if isLibraryHashID(parentId) {
 			collectionID, ok := getCollectionIDByHashID(parentId)
-			log.Println("collectionID", collectionID)
 			if !ok {
 				return nil
 			}

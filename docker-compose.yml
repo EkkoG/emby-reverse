@@ -1,0 +1,15 @@
+version: '3.3'
+services:
+    emby-reverse:
+        build: .
+        container_name: emby-reverse
+        volumes:
+            - ./images:/app/images
+            - ./config.yaml:/app/config.yaml
+        ports:
+            - '9098:8000'
+        environment:
+            - TZ=Asia/Shanghai
+            - UID=1000
+            - GID=1001
+        restart: always
