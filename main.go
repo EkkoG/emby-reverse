@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"hash/fnv"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -366,12 +367,14 @@ func modifyResponse(resp *http.Response) error {
 func main() {
 	cfg, err := LoadConfig("config.yaml")
 	if err != nil {
+		log.Println("LoadConfig error", err)
 		return
 	}
 	config = *cfg
 
 	target, err := url.Parse(config.EmbyServer)
 	if err != nil {
+		log.Println("url.Parse error", err)
 		return
 	}
 
@@ -405,5 +408,6 @@ func main() {
 		proxy.ServeHTTP(w, r)
 	})
 
+	log.Println("emby-reverse listen on :8000")
 	http.ListenAndServe(":8000", nil)
 }
