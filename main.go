@@ -36,6 +36,27 @@ type Library struct {
 
 var config Config
 
+var (
+	hookViewsRe       = regexp.MustCompile(`^/emby/Users/[^/]+/Views$`)
+	hookLatestRe      = regexp.MustCompile(`^/emby/Users/[^/]+/Items/Latest$`) 
+	hookDetailsRe     = regexp.MustCompile(`^/emby/Users/[^/]+/Items$`)
+	hookDetailIntroRe = regexp.MustCompile(`^/emby/Users/[^/]+/Items/\d+$`)
+	hookImageRe = regexp.MustCompile(`^/emby/Items/\d+/Images/Primary$`)
+)
+
+type ResponseHook struct {
+	Pattern *regexp.Regexp
+	Handler func(*http.Response) error
+}
+
+var responseHooks = []ResponseHook{
+	{hookViewsRe, hookViews},
+	{hookLatestRe, hookLatest},
+	{hookDetailsRe, hookDetails},
+	{hookDetailIntroRe, hookDetailIntro},
+	{hookImageRe, hookImage},
+}
+
 // ================== Utility Functions ==================
 func LoadConfig(path string) (*Config, error) {
 	f, err := os.Open(path)
@@ -101,7 +122,6 @@ func getCollectionData(id string, orignalResp *http.Response) map[string]interfa
 	query.Set("X-Emby-Token", orignalQuery.Get("X-Emby-Token"))
 	query.Set("X-Emby-Language", orignalQuery.Get("X-Emby-Language"))
 	req.URL.RawQuery = query.Encode()
-	log.Println(req.URL.Query())
 
 	req.Header.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
 	req.Header.Set("User-Agent", orignalResp.Request.Header.Get("User-Agent"))
@@ -125,25 +145,24 @@ func getCollectionData(id string, orignalResp *http.Response) map[string]interfa
 }
 
 func hookImage(resp *http.Response) error {
-	if strings.HasPrefix(resp.Request.URL.Path, "/emby/Items/") && strings.HasSuffix(resp.Request.URL.Path, "/Images/Primary") {
-		// get tag
-		tag := resp.Request.URL.Query().Get("tag")
-		for _, lib := range config.Library {
-			if HashNameToID(lib.Name) == tag {
-				log.Println("hookImage tag", tag)
-				// read image from ./images/
-				image, err := os.ReadFile(lib.Image)
-				if err != nil {
-					return err
-				}
-				resp.Body = io.NopCloser(bytes.NewReader(image))
-				resp.ContentLength = int64(len(image))
-				resp.Header.Set("Content-Length", strconv.Itoa(len(image)))
-				resp.Header.Del("Content-Encoding")
-				resp.StatusCode = 200
-				resp.Status = "200 OK"
-				return nil
+	log.Println("hookImage")
+	// get tag
+	tag := resp.Request.URL.Query().Get("tag")
+	for _, lib := range config.Library {
+		if HashNameToID(lib.Name) == tag {
+			log.Println("hookImage tag", tag)
+			// read image from ./images/
+			image, err := os.ReadFile(lib.Image)
+			if err != nil {
+				return err
 			}
+			resp.Body = io.NopCloser(bytes.NewReader(image))
+			resp.ContentLength = int64(len(image))
+			resp.Header.Set("Content-Length", strconv.Itoa(len(image)))
+			resp.Header.Del("Content-Encoding")
+			resp.StatusCode = 200
+			resp.Status = "200 OK"
+			return nil
 		}
 	}
 	return nil
@@ -194,34 +213,79 @@ func hookDetailIntro(resp *http.Response) error {
         "folders"
     ]
 }`
-	re := regexp.MustCompile(`/emby/Users/[^/]+/Items/\d+`)
-	if re.MatchString(resp.Request.URL.Path) {
-		// get id after Items/
-		components := strings.Split(resp.Request.URL.Path, "/")
-		id := components[len(components)-1]
-		if !isLibraryHashID(id) {
-			return nil
+	// get id after Items/
+	components := strings.Split(resp.Request.URL.Path, "/")
+	id := components[len(components)-1]
+	if !isLibraryHashID(id) {
+		return nil
+	}
+	log.Println("hookDetailIntro id", id)
+	// 获取真实 collection_id
+	_, ok := getCollectionIDByHashID(id)
+	if !ok {
+		return nil
+	}
+	var data map[string]interface{}
+	err := json.Unmarshal([]byte(template), &data)
+	if err != nil {
+		return err
+	}
+	// 用库名和 hash id 替换
+	for _, lib := range config.Library {
+		if HashNameToID(lib.Name) == id {
+			data["Name"] = lib.Name
+			data["Id"] = id
+			break
 		}
-		log.Println("hookDetailIntro id", id)
-		// 获取真实 collection_id
-		_, ok := getCollectionIDByHashID(id)
+	}
+	bodyBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	resp.ContentLength = int64(len(bodyBytes))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
+	resp.Header.Del("Content-Encoding")
+	resp.StatusCode = 200
+	resp.Status = "200 OK"
+	return nil
+}
+
+func hookDetails(resp *http.Response) error {
+	log.Println("hookDetails")
+	// get parentId
+	parentId := resp.Request.URL.Query().Get("ParentId")
+	if isLibraryHashID(parentId) {
+		collectionID, ok := getCollectionIDByHashID(parentId)
 		if !ok {
 			return nil
 		}
-		var data map[string]interface{}
-		err := json.Unmarshal([]byte(template), &data)
+		log.Println("collectionID", collectionID)
+		bodyText := getCollectionData(collectionID, resp)
+		bodyBytes, err := json.Marshal(bodyText)
 		if err != nil {
 			return err
 		}
-		// 用库名和 hash id 替换
-		for _, lib := range config.Library {
-			if HashNameToID(lib.Name) == id {
-				data["Name"] = lib.Name
-				data["Id"] = id
-				break
-			}
+		resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		resp.ContentLength = int64(len(bodyBytes))
+		resp.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
+		return nil
+	}
+	return nil
+}
+
+func hookLatest(resp *http.Response) error {
+	log.Println("hookLatest")
+	// get parentId
+	parentId := resp.Request.URL.Query().Get("ParentId")
+	if isLibraryHashID(parentId) {
+		collectionID, ok := getCollectionIDByHashID(parentId)
+		if !ok {
+			return nil
 		}
-		bodyBytes, err := json.Marshal(data)
+		log.Println("collectionID", collectionID)
+		items := getCollectionData(collectionID, resp)["Items"].([]interface{})
+		bodyBytes, err := json.Marshal(items)
 		if err != nil {
 			return err
 		}
@@ -229,60 +293,7 @@ func hookDetailIntro(resp *http.Response) error {
 		resp.ContentLength = int64(len(bodyBytes))
 		resp.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
 		resp.Header.Del("Content-Encoding")
-		resp.StatusCode = 200
-		resp.Status = "200 OK"
 		return nil
-	}
-	return nil
-}
-
-func hookDetails(resp *http.Response) error {
-	if strings.HasPrefix(resp.Request.URL.Path, "/emby/Users/") && strings.HasSuffix(resp.Request.URL.Path, "/Items") {
-		log.Println("hookDetails")
-		// get parentId
-		parentId := resp.Request.URL.Query().Get("ParentId")
-		if isLibraryHashID(parentId) {
-			collectionID, ok := getCollectionIDByHashID(parentId)
-			if !ok {
-				return nil
-			}
-			log.Println("collectionID", collectionID)
-			bodyText := getCollectionData(collectionID, resp)
-			bodyBytes, err := json.Marshal(bodyText)
-			if err != nil {
-				return err
-			}
-			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-			resp.ContentLength = int64(len(bodyBytes))
-			resp.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
-			return nil
-		}
-	}
-	return nil
-}
-
-func hookLatest(resp *http.Response) error {
-	if strings.HasPrefix(resp.Request.URL.Path, "/emby/Users/") && strings.HasSuffix(resp.Request.URL.Path, "/Items/Latest") {
-		log.Println("hookLatest")
-		// get parentId
-		parentId := resp.Request.URL.Query().Get("ParentId")
-		if isLibraryHashID(parentId) {
-			collectionID, ok := getCollectionIDByHashID(parentId)
-			if !ok {
-				return nil
-			}
-			log.Println("collectionID", collectionID)
-			items := getCollectionData(collectionID, resp)["Items"].([]interface{})
-			bodyBytes, err := json.Marshal(items)
-			if err != nil {
-				return err
-			}
-			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-			resp.ContentLength = int64(len(bodyBytes))
-			resp.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
-			resp.Header.Del("Content-Encoding")
-			return nil
-		}
 	}
 	return nil
 }
@@ -323,96 +334,93 @@ func hookViews(resp *http.Response) error {
 			"Played": false
 		}
 	}`
-	if strings.HasPrefix(resp.Request.URL.Path, "/emby/Users/") && strings.HasSuffix(resp.Request.URL.Path, "/Views") {
-		log.Println("hookViews")
-		var bodyBytes []byte
-		var err error
-		log.Println("resp.Header.Get(Content-Encoding)", resp.Header.Get("Content-Encoding"))
-		if resp.Header.Get("Content-Encoding") == "br" {
-			br := brotli.NewReader(resp.Body)
-			bodyBytes, err = io.ReadAll(br)
-			resp.Body.Close()
-		} else if resp.Header.Get("Content-Encoding") == "deflate" {
-			df := flate.NewReader(resp.Body)
-			bodyBytes, err = io.ReadAll(df)
-			resp.Body.Close()
-		} else if resp.Header.Get("Content-Encoding") == "gzip" {
-			gz, err := gzip.NewReader(resp.Body)
-			if err != nil {
-				log.Println("gzip.NewReader error", err)
-			}
-			bodyBytes, err = io.ReadAll(gz)
-			if err != nil {
-				log.Println("io.ReadAll error", err)
-			}
-			resp.Body.Close()
-		} else {
-			bodyBytes, err = io.ReadAll(resp.Body)
-			resp.Body.Close()
-		}
+	log.Println("hookViews")
+	var bodyBytes []byte
+	var err error
+	log.Println("resp.Header.Get(Content-Encoding)", resp.Header.Get("Content-Encoding"))
+	if resp.Header.Get("Content-Encoding") == "br" {
+		br := brotli.NewReader(resp.Body)
+		bodyBytes, err = io.ReadAll(br)
+		resp.Body.Close()
+	} else if resp.Header.Get("Content-Encoding") == "deflate" {
+		df := flate.NewReader(resp.Body)
+		bodyBytes, err = io.ReadAll(df)
+		resp.Body.Close()
+	} else if resp.Header.Get("Content-Encoding") == "gzip" {
+		gz, err := gzip.NewReader(resp.Body)
 		if err != nil {
-			return err
+			log.Println("gzip.NewReader error", err)
 		}
-		var data map[string]interface{}
-		err = json.Unmarshal(bodyBytes, &data)
+		bodyBytes, err = io.ReadAll(gz)
 		if err != nil {
-			log.Println("json.Unmarshal error", err)
-			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-			return nil
+			log.Println("io.ReadAll error", err)
 		}
-		items, ok := data["Items"].([]interface{})
-		if !ok {
-			items = []interface{}{}
-		}
-		if len(items) == 0 {
-			return nil
-		}
-		serverId := items[0].(map[string]interface{})["ServerId"].(string)
-		log.Println("Items count", len(data["Items"].([]interface{})))
-		// 遍历 config.Library，生成 item
-		var newItems []interface{}
-		for _, lib := range config.Library {
-			var item map[string]interface{}
-			err := json.Unmarshal([]byte(template), &item)
-			if err != nil {
-				continue
-			}
-			item["Name"] = lib.Name
-			item["SortName"] = lib.Name
-			item["ForcedSortName"] = lib.Name
-			item["Id"] = HashNameToID(lib.Name)
-			item["ImageTags"] = map[string]string{
-				"Primary": HashNameToID(lib.Name),
-			}
-			item["ServerId"] = serverId
-			newItems = append(newItems, item)
-		}
-		// 根据配置决定是否合并真实库
-		if config.HideRealLibrary {
-			items = newItems // 只显示虚拟库
-		} else {
-			items = append(newItems, items...) // 合并
-		}
-		data["Items"] = items
-		newBody, err := json.Marshal(data)
-		if err != nil {
-			return err
-		}
-		resp.Body = io.NopCloser(bytes.NewReader(newBody))
-		resp.ContentLength = int64(len(newBody))
-		resp.Header.Set("Content-Length", strconv.Itoa(len(newBody)))
-		resp.Header.Del("Content-Encoding")
+		resp.Body.Close()
+	} else {
+		bodyBytes, err = io.ReadAll(resp.Body)
+		resp.Body.Close()
+	}
+	if err != nil {
+		return err
+	}
+	var data map[string]interface{}
+	err = json.Unmarshal(bodyBytes, &data)
+	if err != nil {
+		log.Println("json.Unmarshal error", err)
+		resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 		return nil
 	}
+	items, ok := data["Items"].([]interface{})
+	if !ok {
+		items = []interface{}{}
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	serverId := items[0].(map[string]interface{})["ServerId"].(string)
+	log.Println("Items count", len(data["Items"].([]interface{})))
+	// 遍历 config.Library，生成 item
+	var newItems []interface{}
+	for _, lib := range config.Library {
+		var item map[string]interface{}
+		err := json.Unmarshal([]byte(template), &item)
+		if err != nil {
+			continue
+		}
+		item["Name"] = lib.Name
+		item["SortName"] = lib.Name
+		item["ForcedSortName"] = lib.Name
+		item["Id"] = HashNameToID(lib.Name)
+		item["ImageTags"] = map[string]string{
+			"Primary": HashNameToID(lib.Name),
+		}
+		item["ServerId"] = serverId
+		newItems = append(newItems, item)
+	}
+	// 根据配置决定是否合并真实库
+	if config.HideRealLibrary {
+		items = newItems // 只显示虚拟库
+	} else {
+		items = append(newItems, items...) // 合并
+	}
+	data["Items"] = items
+	newBody, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(newBody))
+	resp.ContentLength = int64(len(newBody))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(newBody)))
+	resp.Header.Del("Content-Encoding")
 	return nil
 }
 
 func modifyResponse(resp *http.Response) error {
-	hookViews(resp)
-	hookLatest(resp)
-	hookDetails(resp)
-	hookDetailIntro(resp)
-	hookImage(resp)
+	for _, hook := range responseHooks {
+		if hook.Pattern.MatchString(resp.Request.URL.Path) {
+			return hook.Handler(resp)
+		}
+	}
 	return nil
 }
 
