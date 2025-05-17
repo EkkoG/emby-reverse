@@ -79,12 +79,30 @@ func getCollectionIDByHashID(hashID string) (string, bool) {
 
 func getCollectionData(id string, orignalResp *http.Response) map[string]interface{} {
 	userId := strings.Split(orignalResp.Request.URL.Path, "/")[3]
-	token := orignalResp.Request.URL.Query().Get("X-Emby-Token")
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", config.EmbyServer+"/emby/Users/"+userId+"/Items?ParentId="+id+"&ImageTypeLimit=1&Fields=BasicSyncInfo%2CCanDelete%2CCanDownload%2CPrimaryImageAspectRatio%2CProductionYear%2CStatus%2CEndDate&EnableTotalRecordCount=false&sortBy=DisplayOrder&sortOrder=Ascending&X-Emby-Client=Emby+Web&X-Emby-Device-Name=Microsoft+Edge+macOS&X-Emby-Device-Id=213228ff-8f5f-4a63-b042-33b4882223b3&X-Emby-Client-Version=4.8.11.0&X-Emby-Token="+token+"&X-Emby-Language=en-us", nil)
+	req, err := http.NewRequest("GET", config.EmbyServer+"/emby/Users/"+userId+"/Items", nil)
 	if err != nil {
 		return nil
 	}
+	// ParentId="+id+"&ImageTypeLimit=1&Fields=BasicSyncInfo%2CCanDelete%2CCanDownload%2CPrimaryImageAspectRatio%2CProductionYear%2CStatus%2CEndDate&EnableTotalRecordCount=false&sortBy=DisplayOrder&sortOrder=Ascending&IncludeItemTypes=Movie&X-Emby-Client=Emby+Web&X-Emby-Device-Name=Microsoft+Edge+macOS&X-Emby-Device-Id=213228ff-8f5f-4a63-b042-33b4882223b3&X-Emby-Client-Version=4.8.11.0&X-Emby-Token="+token+"&X-Emby-Language=en-us
+	// override query string, SortBy, SortOrder, IncludeItemTypes
+	orignalQuery := orignalResp.Request.URL.Query()
+	query := req.URL.Query()
+	query.Set("ParentId", id)
+	query.Set("ImageTypeLimit", orignalQuery.Get("ImageTypeLimit"))
+	query.Set("Fields", orignalQuery.Get("Fields"))
+	query.Set("EnableTotalRecordCount", orignalQuery.Get("EnableTotalRecordCount"))
+	query.Set("SortBy", orignalQuery.Get("SortBy"))
+	query.Set("SortOrder", orignalQuery.Get("SortOrder"))
+	query.Set("X-Emby-Client", orignalQuery.Get("X-Emby-Client"))
+	query.Set("X-Emby-Device-Name", orignalQuery.Get("X-Emby-Device-Name"))
+	query.Set("X-Emby-Device-Id", orignalQuery.Get("X-Emby-Device-Id"))
+	query.Set("X-Emby-Client-Version", orignalQuery.Get("X-Emby-Client-Version"))
+	query.Set("X-Emby-Token", orignalQuery.Get("X-Emby-Token"))
+	query.Set("X-Emby-Language", orignalQuery.Get("X-Emby-Language"))
+	req.URL.RawQuery = query.Encode()
+	log.Println(req.URL.Query())
+
 	req.Header.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
 	req.Header.Set("User-Agent", orignalResp.Request.Header.Get("User-Agent"))
 	req.Header.Set("accept", "application/json")
