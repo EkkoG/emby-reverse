@@ -414,17 +414,6 @@ func main() {
 
 	// 修改响应，处理重定向
 	proxy.ModifyResponse = func(resp *http.Response) error {
-		// 检查是否为重定向
-		if resp.StatusCode >= 300 && resp.StatusCode < 400 {
-			location := resp.Header.Get("Location")
-			if location != "" {
-				// 替换为反代服务器地址
-				embyURL, _ := url.Parse(config.EmbyServer)
-				proxyURL, _ := url.Parse(proxyBase)
-				newLocation := strings.Replace(location, embyURL.Scheme+"://"+embyURL.Host, proxyURL.String(), 1)
-				resp.Header.Set("Location", newLocation)
-			}
-		}
 		return modifyResponse(resp)
 	}
 
