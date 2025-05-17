@@ -81,7 +81,7 @@ func getCollectionData(id string, orignalResp *http.Response) map[string]interfa
 	userId := strings.Split(orignalResp.Request.URL.Path, "/")[3]
 	token := orignalResp.Request.URL.Query().Get("X-Emby-Token")
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", config.EmbyServer+"/emby/Users/"+userId+"/Items?ParentId="+id+"&ImageTypeLimit=1&Fields=BasicSyncInfo%2CCanDelete%2CCanDownload%2CPrimaryImageAspectRatio%2CProductionYear%2CStatus%2CEndDate&EnableTotalRecordCount=false&sortBy=DisplayOrder&sortOrder=Ascending&IncludeItemTypes=Movie&X-Emby-Client=Emby+Web&X-Emby-Device-Name=Microsoft+Edge+macOS&X-Emby-Device-Id=213228ff-8f5f-4a63-b042-33b4882223b3&X-Emby-Client-Version=4.8.11.0&X-Emby-Token="+token+"&X-Emby-Language=en-us", nil)
+	req, err := http.NewRequest("GET", config.EmbyServer+"/emby/Users/"+userId+"/Items?ParentId="+id+"&ImageTypeLimit=1&Fields=BasicSyncInfo%2CCanDelete%2CCanDownload%2CPrimaryImageAspectRatio%2CProductionYear%2CStatus%2CEndDate&EnableTotalRecordCount=false&sortBy=DisplayOrder&sortOrder=Ascending&X-Emby-Client=Emby+Web&X-Emby-Device-Name=Microsoft+Edge+macOS&X-Emby-Device-Id=213228ff-8f5f-4a63-b042-33b4882223b3&X-Emby-Client-Version=4.8.11.0&X-Emby-Token="+token+"&X-Emby-Language=en-us", nil)
 	if err != nil {
 		return nil
 	}
