@@ -104,6 +104,7 @@ func getCollectionData(id string, orignalResp *http.Response) map[string]interfa
 	if err != nil {
 		return nil
 	}
+	log.Println("getCollectionData data count", len(data["Items"].([]interface{})))
 	return data
 }
 
@@ -229,6 +230,7 @@ func hookDetails(resp *http.Response) error {
 			if !ok {
 				return nil
 			}
+			log.Println("collectionID", collectionID)
 			bodyText := getCollectionData(collectionID, resp)
 			bodyBytes, err := json.Marshal(bodyText)
 			if err != nil {
@@ -253,6 +255,7 @@ func hookLatest(resp *http.Response) error {
 			if !ok {
 				return nil
 			}
+			log.Println("collectionID", collectionID)
 			items := getCollectionData(collectionID, resp)["Items"].([]interface{})
 			bodyBytes, err := json.Marshal(items)
 			if err != nil {
