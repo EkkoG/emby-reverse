@@ -134,7 +134,7 @@ func hookImage(resp *http.Response) error {
 func hookDetailIntro(resp *http.Response) error {
 	template := `{
     "Name": "Sample Library",
-    "ServerId": "a9d52db3cb7b41c5958642fe456d411e",
+    "ServerId": "",
     "Id": "1241",
     "Guid": "470c3d1e3b5e4a0287ad485a5cf67207",
     "Etag": "8281abb37d32a2b95db7e5a5df4407a4",
@@ -295,7 +295,7 @@ func hookViews(resp *http.Response) error {
 		"PrimaryImageAspectRatio": 1.7777777777777777,
 		"ProviderIds": {},
 		"RemoteTrailers": [],
-		"ServerId": "a9d52db3cb7b41c5958642fe456d411e",
+		"ServerId": "",
 		"SortName": "Sample Library",
 		"Taglines": [],
 		"Type": "CollectionFolder",
@@ -346,6 +346,10 @@ func hookViews(resp *http.Response) error {
 		if !ok {
 			items = []interface{}{}
 		}
+		if len(items) == 0 {
+			return nil
+		}
+		serverId := items[0].(map[string]interface{})["ServerId"].(string)
 		log.Println("Items count", len(data["Items"].([]interface{})))
 		// 遍历 config.Library，生成 item
 		var newItems []interface{}
@@ -362,6 +366,7 @@ func hookViews(resp *http.Response) error {
 			item["ImageTags"] = map[string]string{
 				"Primary": HashNameToID(lib.Name),
 			}
+			item["ServerId"] = serverId
 			newItems = append(newItems, item)
 		}
 		// 根据配置决定是否合并真实库
