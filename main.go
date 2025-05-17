@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -411,8 +412,16 @@ func main() {
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		originalDirector(req)
-		// 保持 Host 头为 Emby 服务器
 		req.Host = target.Host
+		// 添加 X-Forwarded-For
+		if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+			prior := req.Header.Get("X-Forwarded-For")
+			if prior != "" {
+				req.Header.Set("X-Forwarded-For", prior+", "+clientIP)
+			} else {
+				req.Header.Set("X-Forwarded-For", clientIP)
+			}
+		}
 	}
 
 	// 修改响应，处理重定向
