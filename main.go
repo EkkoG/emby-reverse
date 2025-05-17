@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"encoding/json"
 	"hash/fnv"
 	"io"
@@ -111,6 +113,7 @@ func hookImage(resp *http.Response) error {
 		tag := resp.Request.URL.Query().Get("tag")
 		for _, lib := range config.Library {
 			if HashNameToID(lib.Name) == tag {
+				log.Println("hookImage tag", tag)
 				// read image from ./images/
 				image, err := os.ReadFile(lib.Image)
 				if err != nil {
@@ -182,6 +185,7 @@ func hookDetailIntro(resp *http.Response) error {
 		if !isLibraryHashID(id) {
 			return nil
 		}
+		log.Println("hookDetailIntro id", id)
 		// 获取真实 collection_id
 		_, ok := getCollectionIDByHashID(id)
 		if !ok {
@@ -217,6 +221,7 @@ func hookDetailIntro(resp *http.Response) error {
 
 func hookDetails(resp *http.Response) error {
 	if strings.HasPrefix(resp.Request.URL.Path, "/emby/Users/") && strings.HasSuffix(resp.Request.URL.Path, "/Items") {
+		log.Println("hookDetails")
 		// get parentId
 		parentId := resp.Request.URL.Query().Get("ParentId")
 		if isLibraryHashID(parentId) {
@@ -240,6 +245,7 @@ func hookDetails(resp *http.Response) error {
 
 func hookLatest(resp *http.Response) error {
 	if strings.HasPrefix(resp.Request.URL.Path, "/emby/Users/") && strings.HasSuffix(resp.Request.URL.Path, "/Items/Latest") {
+		log.Println("hookLatest")
 		// get parentId
 		parentId := resp.Request.URL.Query().Get("ParentId")
 		if isLibraryHashID(parentId) {
@@ -299,11 +305,27 @@ func hookViews(resp *http.Response) error {
 		}
 	}`
 	if strings.HasPrefix(resp.Request.URL.Path, "/emby/Users/") && strings.HasSuffix(resp.Request.URL.Path, "/Views") {
+		log.Println("hookViews")
 		var bodyBytes []byte
 		var err error
+		log.Println("resp.Header.Get(Content-Encoding)", resp.Header.Get("Content-Encoding"))
 		if resp.Header.Get("Content-Encoding") == "br" {
 			br := brotli.NewReader(resp.Body)
 			bodyBytes, err = io.ReadAll(br)
+			resp.Body.Close()
+		} else if resp.Header.Get("Content-Encoding") == "deflate" {
+			df := flate.NewReader(resp.Body)
+			bodyBytes, err = io.ReadAll(df)
+			resp.Body.Close()
+		} else if resp.Header.Get("Content-Encoding") == "gzip" {
+			gz, err := gzip.NewReader(resp.Body)
+			if err != nil {
+				log.Println("gzip.NewReader error", err)
+			}
+			bodyBytes, err = io.ReadAll(gz)
+			if err != nil {
+				log.Println("io.ReadAll error", err)
+			}
 			resp.Body.Close()
 		} else {
 			bodyBytes, err = io.ReadAll(resp.Body)
@@ -315,6 +337,7 @@ func hookViews(resp *http.Response) error {
 		var data map[string]interface{}
 		err = json.Unmarshal(bodyBytes, &data)
 		if err != nil {
+			log.Println("json.Unmarshal error", err)
 			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 			return nil
 		}
@@ -322,6 +345,7 @@ func hookViews(resp *http.Response) error {
 		if !ok {
 			items = []interface{}{}
 		}
+		log.Println("Items count", len(data["Items"].([]interface{})))
 		// 遍历 config.Library，生成 item
 		var newItems []interface{}
 		for _, lib := range config.Library {
