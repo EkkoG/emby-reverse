@@ -21,10 +21,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const (
-	proxyBase = "http://127.0.0.1:8000"
-)
-
 // ================== Config Struct ==================
 type Config struct {
 	EmbyServer string    `yaml:"emby_server"`
