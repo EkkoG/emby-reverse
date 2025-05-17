@@ -6,14 +6,27 @@ name: Docker
 # documentation.
 
 on:
-  schedule:
-    - cron: '36 19 * * *'
   push:
     branches: [ "main" ]
-    # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
+    paths:
+      - 'main.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - '.github/workflows/docker-publish.yml'
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'main.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - '.github/workflows/docker-publish.yml'
+  schedule:
+    - cron: '36 19 * * *'
 
 env:
   # Use docker.io for Docker Hub if empty
