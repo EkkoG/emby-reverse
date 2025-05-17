@@ -38,10 +38,10 @@ var config Config
 
 var (
 	hookViewsRe       = regexp.MustCompile(`^/emby/Users/[^/]+/Views$`)
-	hookLatestRe      = regexp.MustCompile(`^/emby/Users/[^/]+/Items/Latest$`) 
+	hookLatestRe      = regexp.MustCompile(`^/emby/Users/[^/]+/Items/Latest$`)
 	hookDetailsRe     = regexp.MustCompile(`^/emby/Users/[^/]+/Items$`)
 	hookDetailIntroRe = regexp.MustCompile(`^/emby/Users/[^/]+/Items/\d+$`)
-	hookImageRe = regexp.MustCompile(`^/emby/Items/\d+/Images/Primary$`)
+	hookImageRe       = regexp.MustCompile(`^/emby/Items/\d+/Images/Primary$`)
 )
 
 type ResponseHook struct {
@@ -98,7 +98,98 @@ func getCollectionIDByHashID(hashID string) (string, bool) {
 	return "", false
 }
 
+func getAllCollections(boxId string, orignalResp *http.Response) []map[string]interface{} {
+	userId := strings.Split(orignalResp.Request.URL.Path, "/")[3]
+	token := orignalResp.Request.URL.Query().Get("X-Emby-Token")
+	url := config.EmbyServer + "/emby/Users/" + userId + "/Items"
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	query := orignalResp.Request.URL.Query()
+	query.Set("ParentId", boxId)
+	query.Set("X-Emby-Token", token)
+	query.Set("X-Emby-Language", orignalResp.Request.Header.Get("Accept-Language"))
+	req.URL.RawQuery = query.Encode()
+	if err != nil {
+		return nil
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	var data map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&data)
+	if err != nil {
+		return nil
+	}
+	var collections []map[string]interface{}
+	for _, item := range data["Items"].([]interface{}) {
+		collections = append(collections, item.(map[string]interface{}))
+	}
+	return collections
+}
+
+func getFirstBoxset(orignalResp *http.Response) map[string]interface{} {
+	userId := strings.Split(orignalResp.Request.URL.Path, "/")[3]
+	token := orignalResp.Request.URL.Query().Get("X-Emby-Token")
+	// http://127.0.0.1:8000/emby/Users/2253db2c33584679b6a7ee38d9616315/Views
+	url := config.EmbyServer + "/emby/Users/" + userId + "/Views"
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	query := orignalResp.Request.URL.Query()
+	query.Set("X-Emby-Token", token)
+	query.Set("X-Emby-Language", orignalResp.Request.Header.Get("Accept-Language"))
+	req.URL.RawQuery = query.Encode()
+	if err != nil {
+		return nil
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	var data map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&data)
+	if err != nil {
+		return nil
+	}
+	var boxsets map[string]interface{}
+	// find first item with CollectionType is boxsets
+	for _, item := range data["Items"].([]interface{}) {
+		if item.(map[string]interface{})["CollectionType"] == "boxsets" {
+			boxsets = item.(map[string]interface{})
+			break
+		}
+	}
+	if boxsets == nil {
+		return nil
+	}
+	return boxsets
+}
+
+func ensureCollectionExist(id string, orignalResp *http.Response) bool {
+	boxsets := getFirstBoxset(orignalResp)
+	if boxsets == nil {
+		return false
+	}
+	collectionId := boxsets["Id"].(string)
+	collections := getAllCollections(collectionId, orignalResp)
+	if len(collections) == 0 {
+		return false
+	}
+	for _, collection := range collections {
+		if collection["Id"].(string) == id {
+			return true
+		}
+	}
+	return false
+}
+
 func getCollectionData(id string, orignalResp *http.Response) map[string]interface{} {
+	if !ensureCollectionExist(id, orignalResp) {
+		emptyCollection := map[string]interface{}{}
+		emptyCollection["Items"] = []interface{}{}
+		return emptyCollection
+	}
+
 	userId := strings.Split(orignalResp.Request.URL.Path, "/")[3]
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", config.EmbyServer+"/emby/Users/"+userId+"/Items", nil)
@@ -418,6 +509,8 @@ func hookViews(resp *http.Response) error {
 func modifyResponse(resp *http.Response) error {
 	for _, hook := range responseHooks {
 		if hook.Pattern.MatchString(resp.Request.URL.Path) {
+			log.Println("matched", resp.Request.URL.Path)
+			log.Println("hook", hook.Pattern.String())
 			return hook.Handler(resp)
 		}
 	}
