@@ -23,8 +23,9 @@ import (
 
 // ================== Config Struct ==================
 type Config struct {
-	EmbyServer string    `yaml:"emby_server"`
-	Library    []Library `yaml:"library"`
+	EmbyServer      string    `yaml:"emby_server"`
+	HideRealLibrary bool      `yaml:"hide_real_library"`
+	Library         []Library `yaml:"library"`
 }
 
 type Library struct {
@@ -363,8 +364,12 @@ func hookViews(resp *http.Response) error {
 			}
 			newItems = append(newItems, item)
 		}
-		// 合并新老 items
-		items = append(newItems, items...)
+		// 根据配置决定是否合并真实库
+		if config.HideRealLibrary {
+			items = newItems // 只显示虚拟库
+		} else {
+			items = append(newItems, items...) // 合并
+		}
 		data["Items"] = items
 		newBody, err := json.Marshal(data)
 		if err != nil {

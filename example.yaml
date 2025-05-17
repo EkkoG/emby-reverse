@@ -1,4 +1,5 @@
 emby_server: http://192.168.33.120:8096
+hide_real_library: true
 library:
   - name: 所有电影
     collection_id: 8960
