@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # 构建可执行文件
-RUN go build -o emby-reverse main.go
+RUN go build -o emby-virtual-lib main.go
 
 # 使用更小的基础镜像运行
 FROM alpine:latest
@@ -19,10 +19,10 @@ FROM alpine:latest
 WORKDIR /app
 
 # 拷贝可执行文件和配置、图片等资源
-COPY --from=builder /app/emby-reverse .
+COPY --from=builder /app/emby-virtual-lib .
 
 # 暴露端口
 EXPOSE 8000
 
 # 启动服务
-CMD ["./emby-reverse"] 
+CMD ["./emby-virtual-lib"] 

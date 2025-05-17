@@ -1,4 +1,4 @@
-module emby-reverse
+module emby-virtual-lib
 
 go 1.22.6
 

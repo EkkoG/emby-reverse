@@ -1,4 +1,4 @@
-# emby-reverse
+# emby-virtual-lib
 
 A reverse proxy for Emby that allows you to customize and inject virtual libraries, modify API responses, and provide custom images for libraries. The project is written in Go for easy deployment and integration with existing Emby servers.
 
@@ -42,34 +42,34 @@ library:
    ```
 3. Build:
    ```bash
-   go build -o emby-reverse main.go
+   go build -o emby-virtual-lib main.go
    ```
 4. Run:
    ```bash
-   ./emby-reverse
+   ./emby-virtual-lib
    ```
 
 ### Docker
 
 1. Build the image:
    ```bash
-   docker build -t emby-reverse .
+   docker build -t emby-virtual-lib .
    ```
 2. Run the container:
    ```bash
-   docker run -d -p 8000:8000 --name emby-reverse emby-reverse
+   docker run -d -p 8000:8000 --name emby-virtual-lib emby-virtual-lib
    ```
 
 ## Docker Compose Deployment
 
-You can use Docker Compose to manage and deploy emby-reverse more easily. Here is a sample `docker-compose.yml` file:
+You can use Docker Compose to manage and deploy emby-virtual-lib more easily. Here is a sample `docker-compose.yml` file:
 
 ```yaml
 version: '3.8'
 services:
-  emby-reverse:
-    image: ghcr.io/ekkog/emby-reverse:main
-    container_name: emby-reverse
+  emby-virtual-lib:
+    image: ghcr.io/ekkog/emby-virtual-lib:main
+    container_name: emby-virtual-lib
     ports:
       - "8000:8000"
     volumes:
@@ -105,7 +105,7 @@ services:
 Only the APIs that need to be modified are proxied to this program, other APIs are forwarded directly to the original Emby server:
 
 ```nginx
-upstream emby_reverse {
+upstream emby_virtual_lib {
     server 127.0.0.1:8000;
 }
 
@@ -117,9 +117,9 @@ server {
     listen 80;
     server_name your.domain.com;
 
-        # only proxy /emby/Users/<id>/Views、/Items、/Items/Latest to emby-reverse
+        # only proxy /emby/Users/<id>/Views、/Items、/Items/Latest to emby-virtual-lib
         location ~ ^/emby/Users/[^/]+/(Views|Items|Items/Latest) {
-                proxy_pass http://emby_reverse;
+                proxy_pass http://emby_virtual_lib;
                 proxy_redirect          off;
                 proxy_buffering         off;
                 proxy_set_header        Host                    $host;
@@ -128,9 +128,9 @@ server {
                 proxy_set_header        X-Forwarded-Protocol    $scheme;
         }
 
-        # only proxy image to emby-reverse
+        # only proxy image to emby-virtual-lib
         location ~ ^/emby/Items/[^/]+/Images/Primary {
-                proxy_pass http://emby_reverse;
+                proxy_pass http://emby_virtual_lib;
                 proxy_redirect          off;
                 proxy_buffering         off;
                 proxy_set_header        Host                    $host;
@@ -163,7 +163,7 @@ A: Any image format that Go's `os.ReadFile` can read and return as a byte stream
 A: Edit `config.yaml`, then restart the program or container.
 
 **Q: How to view logs?**  
-A: The program outputs logs to standard output. For Docker, use `docker logs emby-reverse` to view logs.
+A: The program outputs logs to standard output. For Docker, use `docker logs emby-virtual-lib` to view logs.
 
 ## License
 

@@ -1,8 +1,8 @@
 version: '3.3'
 services:
-    emby-reverse:
+    emby-virtual-lib:
         build: .
-        container_name: emby-reverse
+        container_name: emby-virtual-lib
         volumes:
             - ./images:/app/images
             - ./config.yaml:/app/config.yaml

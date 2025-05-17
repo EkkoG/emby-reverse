@@ -1,4 +1,4 @@
-# emby-reverse
+# emby-virtual-lib
 
 一个用于 Emby 的反向代理，可以自定义并注入虚拟媒体库、修改 API 响应、为媒体库提供自定义图片。项目使用 Go 编写，便于部署和与现有 Emby 服务器集成。
 
@@ -40,34 +40,34 @@ library:
    ```
 3. 编译：
    ```bash
-   go build -o emby-reverse main.go
+   go build -o emby-virtual-lib main.go
    ```
 4. 运行：
    ```bash
-   ./emby-reverse
+   ./emby-virtual-lib
    ```
 
 ### Docker
 
 1. 构建镜像：
    ```bash
-   docker build -t emby-reverse .
+   docker build -t emby-virtual-lib .
    ```
 2. 运行容器：
    ```bash
-   docker run -d -p 8000:8000 --name emby-reverse emby-reverse
+   docker run -d -p 8000:8000 --name emby-virtual-lib emby-virtual-lib
    ```
 
 ## Docker Compose 部署
 
-你可以使用 Docker Compose 更方便地管理和部署 emby-reverse 服务。以下是一个示例 `docker-compose.yml` 文件：
+你可以使用 Docker Compose 更方便地管理和部署 emby-virtual-lib 服务。以下是一个示例 `docker-compose.yml` 文件：
 
 ```yaml
 version: '3.8'
 services:
-  emby-reverse:
-    image: ghcr.io/ekkog/emby-reverse:main
-    container_name: emby-reverse
+  emby-virtual-lib:
+    image: ghcr.io/ekkog/emby-virtual-lib:main
+    container_name: emby-virtual-lib
     ports:
       - "8000:8000"
     volumes:
@@ -103,7 +103,7 @@ services:
 只将需要修改的 API 反代到本程序，其他 API 直接转发到原 Emby 服务器：
 
 ```nginx
-upstream emby_reverse {
+upstream emby_virtual_lib {
     server 127.0.0.1:8000;
 }
 
@@ -115,9 +115,9 @@ server {
     listen 80;
     server_name your.domain.com;
 
-        # 只将 /emby/Users/<id>/Views、/Items、/Items/Latest 等需要 hook 的 API 反代到 emby-reverse
+        # 只将 /emby/Users/<id>/Views、/Items、/Items/Latest 等需要 hook 的 API 反代到 emby-virtual-lib
         location ~ ^/emby/Users/[^/]+/(Views|Items|Items/Latest) {
-                proxy_pass http://emby_reverse;
+                proxy_pass http://emby_virtual_lib;
                 proxy_redirect          off;
                 proxy_buffering         off;
                 proxy_set_header        Host                    $host;
@@ -126,9 +126,9 @@ server {
                 proxy_set_header        X-Forwarded-Protocol    $scheme;
         }
 
-        # 只将图片 hook 到 emby-reverse
+        # 只将图片 hook 到 emby-virtual-lib
         location ~ ^/emby/Items/[^/]+/Images/Primary {
-                proxy_pass http://emby_reverse;
+                proxy_pass http://emby_virtual_lib;
                 proxy_redirect          off;
                 proxy_buffering         off;
                 proxy_set_header        Host                    $host;
@@ -161,7 +161,7 @@ A: 只要 Go 的 `os.ReadFile` 能读取并作为字节流返回的图片格式�
 A: 编辑 `config.yaml`，然后重启程序或容器。
 
 **Q: 如何查看日志？**  
-A: 程序日志输出到标准输出。Docker 方式可用 `docker logs emby-reverse` 查看。
+A: 程序日志输出到标准输出。Docker 方式可用 `docker logs emby-virtual-lib` 查看。
 
 ## License
 

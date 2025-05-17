@@ -433,6 +433,6 @@ func main() {
 		proxy.ServeHTTP(w, r)
 	})
 
-	log.Println("emby-reverse listen on :8000")
+	log.Println("emby-virtual-lib listen on :8000")
 	http.ListenAndServe(":8000", nil)
 }
