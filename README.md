@@ -117,23 +117,37 @@ server {
     listen 80;
     server_name your.domain.com;
 
-    # APIs that need to be handled by emby-reverse
-    location ~ ^/emby/(Users|Items|Views) {
-        proxy_pass http://emby_reverse;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+        # only proxy /emby/Users/<id>/Views、/Items、/Items/Latest to emby-reverse
+        location ~ ^/emby/Users/[^/]+/(Views|Items|Items/Latest) {
+                proxy_pass http://emby_reverse;
+                proxy_redirect          off;
+                proxy_buffering         off;
+                proxy_set_header        Host                    $host;
+                proxy_set_header        X-Real-IP               $remote_addr;
+                proxy_set_header        X-Forwarded-For         $proxy_add_x_forwarded_for;
+                proxy_set_header        X-Forwarded-Protocol    $scheme;
+        }
 
-    # Other APIs are forwarded directly to Emby
-    location /emby/ {
-        proxy_pass http://emby_origin;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+        # only proxy image to emby-reverse
+        location ~ ^/emby/Items/[^/]+/Images/Primary {
+                proxy_pass http://emby_reverse;
+                proxy_redirect          off;
+                proxy_buffering         off;
+                proxy_set_header        Host                    $host;
+                proxy_set_header        X-Real-IP               $remote_addr;
+                proxy_set_header        X-Forwarded-For         $proxy_add_x_forwarded_for;
+                proxy_set_header        X-Forwarded-Protocol    $scheme;
+        }
+
+	location / {
+		proxy_pass http://emby_origin;
+                proxy_redirect          off;
+                proxy_buffering         off;
+                proxy_set_header        Host                    $host;
+                proxy_set_header        X-Real-IP               $remote_addr;
+                proxy_set_header        X-Forwarded-For         $proxy_add_x_forwarded_for;
+                proxy_set_header        X-Forwarded-Protocol    $scheme;
+	}
 }
 ```
 
