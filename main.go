@@ -98,26 +98,74 @@ func getCollectionIDByHashID(hashID string) (string, bool) {
 	return "", false
 }
 
-func getAllCollections(boxId string, orignalResp *http.Response) []map[string]interface{} {
-	userId := strings.Split(orignalResp.Request.URL.Path, "/")[3]
-	token := orignalResp.Request.URL.Query().Get("X-Emby-Token")
-	url := config.EmbyServer + "/emby/Users/" + userId + "/Items"
+// 获取 userId 和 token
+func getUserIdAndToken(resp *http.Response) (string, string) {
+	parts := strings.Split(resp.Request.URL.Path, "/")
+	userId := ""
+	if len(parts) > 3 {
+		userId = parts[3]
+	}
+	token := resp.Request.URL.Query().Get("X-Emby-Token")
+	return userId, token
+}
+
+// 拼接 Emby API URL
+func embyURL(path string, userId string) string {
+	return config.EmbyServer + strings.Replace(path, "{userId}", userId, 1)
+}
+
+// 通用 GET 请求并解析 JSON
+func doGetJSON(
+	baseURL string,
+	query url.Values,
+	headers http.Header,
+	cookies []*http.Cookie,
+) (map[string]interface{}, error) {
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", baseURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	if query != nil {
+		req.URL.RawQuery = query.Encode()
+	}
+	for k, v := range headers {
+		for _, vv := range v {
+			req.Header.Add(k, vv)
+		}
+	}
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var data map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func getAllCollections(boxId string, orignalResp *http.Response) []map[string]interface{} {
+	userId, token := getUserIdAndToken(orignalResp)
+	url := embyURL("/emby/Users/{userId}/Items", userId)
+
 	query := orignalResp.Request.URL.Query()
 	query.Set("ParentId", boxId)
 	query.Set("X-Emby-Token", token)
 	query.Set("X-Emby-Language", orignalResp.Request.Header.Get("Accept-Language"))
-	req.URL.RawQuery = query.Encode()
-	if err != nil {
-		return nil
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil
-	}
-	var data map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&data)
+
+	headers := http.Header{}
+	headers.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
+	headers.Set("User-Agent", orignalResp.Request.Header.Get("User-Agent"))
+	headers.Set("accept", "application/json")
+
+	cookies := orignalResp.Request.Cookies()
+
+	data, err := doGetJSON(url, query, headers, cookies)
 	if err != nil {
 		return nil
 	}
@@ -129,30 +177,25 @@ func getAllCollections(boxId string, orignalResp *http.Response) []map[string]in
 }
 
 func getFirstBoxset(orignalResp *http.Response) map[string]interface{} {
-	userId := strings.Split(orignalResp.Request.URL.Path, "/")[3]
-	token := orignalResp.Request.URL.Query().Get("X-Emby-Token")
-	// http://127.0.0.1:8000/emby/Users/2253db2c33584679b6a7ee38d9616315/Views
-	url := config.EmbyServer + "/emby/Users/" + userId + "/Views"
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
+	userId, token := getUserIdAndToken(orignalResp)
+	url := embyURL("/emby/Users/{userId}/Views", userId)
+
 	query := orignalResp.Request.URL.Query()
 	query.Set("X-Emby-Token", token)
 	query.Set("X-Emby-Language", orignalResp.Request.Header.Get("Accept-Language"))
-	req.URL.RawQuery = query.Encode()
-	if err != nil {
-		return nil
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil
-	}
-	var data map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&data)
+
+	headers := http.Header{}
+	headers.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
+	headers.Set("User-Agent", orignalResp.Request.Header.Get("User-Agent"))
+	headers.Set("accept", "application/json")
+
+	cookies := orignalResp.Request.Cookies()
+
+	data, err := doGetJSON(url, query, headers, cookies)
 	if err != nil {
 		return nil
 	}
 	var boxsets map[string]interface{}
-	// find first item with CollectionType is boxsets
 	for _, item := range data["Items"].([]interface{}) {
 		if item.(map[string]interface{})["CollectionType"] == "boxsets" {
 			boxsets = item.(map[string]interface{})
@@ -190,16 +233,8 @@ func getCollectionData(id string, orignalResp *http.Response) map[string]interfa
 		return emptyCollection
 	}
 
-	userId := strings.Split(orignalResp.Request.URL.Path, "/")[3]
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", config.EmbyServer+"/emby/Users/"+userId+"/Items", nil)
-	if err != nil {
-		return nil
-	}
-	// ParentId="+id+"&ImageTypeLimit=1&Fields=BasicSyncInfo%2CCanDelete%2CCanDownload%2CPrimaryImageAspectRatio%2CProductionYear%2CStatus%2CEndDate&EnableTotalRecordCount=false&sortBy=DisplayOrder&sortOrder=Ascending&IncludeItemTypes=Movie&X-Emby-Client=Emby+Web&X-Emby-Device-Name=Microsoft+Edge+macOS&X-Emby-Device-Id=213228ff-8f5f-4a63-b042-33b4882223b3&X-Emby-Client-Version=4.8.11.0&X-Emby-Token="+token+"&X-Emby-Language=en-us
-	// override query string, SortBy, SortOrder, IncludeItemTypes
 	orignalQuery := orignalResp.Request.URL.Query()
-	query := req.URL.Query()
+	query := url.Values{} // 避免污染原始 query
 	query.Set("ParentId", id)
 	query.Set("ImageTypeLimit", orignalQuery.Get("ImageTypeLimit"))
 	query.Set("Fields", orignalQuery.Get("Fields"))
@@ -212,22 +247,17 @@ func getCollectionData(id string, orignalResp *http.Response) map[string]interfa
 	query.Set("X-Emby-Client-Version", orignalQuery.Get("X-Emby-Client-Version"))
 	query.Set("X-Emby-Token", orignalQuery.Get("X-Emby-Token"))
 	query.Set("X-Emby-Language", orignalQuery.Get("X-Emby-Language"))
-	req.URL.RawQuery = query.Encode()
 
-	req.Header.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
-	req.Header.Set("User-Agent", orignalResp.Request.Header.Get("User-Agent"))
-	req.Header.Set("accept", "application/json")
-	// 复制原请求的 Cookie
-	for _, c := range orignalResp.Request.Cookies() {
-		req.AddCookie(c)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil
-	}
-	// 取出 Items 的值
-	var data map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&data)
+	headers := http.Header{}
+	headers.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
+	headers.Set("User-Agent", orignalResp.Request.Header.Get("User-Agent"))
+	headers.Set("accept", "application/json")
+
+	cookies := orignalResp.Request.Cookies()
+
+	userId, _ := getUserIdAndToken(orignalResp)
+	url := embyURL("/emby/Users/{userId}/Items", userId)
+	data, err := doGetJSON(url, query, headers, cookies)
 	if err != nil {
 		return nil
 	}
