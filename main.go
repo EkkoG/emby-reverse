@@ -228,6 +228,7 @@ func ensureCollectionExist(id string, orignalResp *http.Response) bool {
 
 func getCollectionData(id string, orignalResp *http.Response) map[string]interface{} {
 	if !ensureCollectionExist(id, orignalResp) {
+		log.Println("collection not exist, will return empty collection", id)
 		emptyCollection := map[string]interface{}{}
 		emptyCollection["Items"] = []interface{}{}
 		return emptyCollection
