@@ -148,13 +148,27 @@ func doGetJSON(
 	return data, nil
 }
 
+// 优化 X-Emby 参数处理，优先 originalQuery，其次 header，最后 query
+func setXEmbyParams(query, originalQuery url.Values, header http.Header) {
+	xEmbyKeys := []string{"X-Emby-Client", "X-Emby-Device-Name", "X-Emby-Device-Id", "X-Emby-Client-Version", "X-Emby-Token", "X-Emby-Language"}
+	for _, key := range xEmbyKeys {
+		val := originalQuery.Get(key)
+		if val == "" {
+			val = header.Get(key)
+		}
+		if val != "" {
+			query.Set(key, val)
+		}
+	}
+}
+
 func getAllCollections(boxId string, orignalResp *http.Response) []map[string]interface{} {
 	userId := getUserId(orignalResp)
-	url := embyURL("/emby/Users/{userId}/Items", userId)
 
-	query := orignalResp.Request.URL.Query()
+	query := url.Values{}
 	query.Set("ParentId", boxId)
-	query.Set("X-Emby-Language", orignalResp.Request.Header.Get("Accept-Language"))
+
+	setXEmbyParams(query, orignalResp.Request.URL.Query(), orignalResp.Request.Header)
 
 	headers := http.Header{}
 	headers.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
@@ -163,18 +177,7 @@ func getAllCollections(boxId string, orignalResp *http.Response) []map[string]in
 
 	cookies := orignalResp.Request.Cookies()
 
-	// X-Emby 开头的参数优先从 query 获取，没有则从 Header 获取
-	xEmbyKeys := []string{"X-Emby-Client", "X-Emby-Device-Name", "X-Emby-Device-Id", "X-Emby-Client-Version", "X-Emby-Token", "X-Emby-Language"}
-	for _, key := range xEmbyKeys {
-		val := orignalResp.Request.URL.Query().Get(key)
-		if val == "" {
-			val = orignalResp.Request.Header.Get(key)
-		}
-		if val != "" {
-			query.Set(key, val)
-		}
-	}
-
+	url := embyURL("/emby/Users/{userId}/Items", userId)
 	data, err := doGetJSON(url, query, headers, cookies)
 	if err != nil {
 		return nil
@@ -188,10 +191,11 @@ func getAllCollections(boxId string, orignalResp *http.Response) []map[string]in
 
 func getFirstBoxset(orignalResp *http.Response) map[string]interface{} {
 	userId := getUserId(orignalResp)
-	url := embyURL("/emby/Users/{userId}/Views", userId)
 
-	query := orignalResp.Request.URL.Query()
-	query.Set("X-Emby-Language", orignalResp.Request.Header.Get("Accept-Language"))
+	query := url.Values{}
+
+	setXEmbyParams(query, orignalResp.Request.URL.Query(), orignalResp.Request.Header)
+	log.Println("getFirstBoxset query", query)
 
 	headers := http.Header{}
 	headers.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
@@ -200,18 +204,7 @@ func getFirstBoxset(orignalResp *http.Response) map[string]interface{} {
 
 	cookies := orignalResp.Request.Cookies()
 
-	// X-Emby 开头的参数优先从 query 获取，没有则从 Header 获取
-	xEmbyKeys := []string{"X-Emby-Client", "X-Emby-Device-Name", "X-Emby-Device-Id", "X-Emby-Client-Version", "X-Emby-Token", "X-Emby-Language"}
-	for _, key := range xEmbyKeys {
-		val := orignalResp.Request.URL.Query().Get(key)
-		if val == "" {
-			val = orignalResp.Request.Header.Get(key)
-		}
-		if val != "" {
-			query.Set(key, val)
-		}
-	}
-
+	url := embyURL("/emby/Users/{userId}/Views", userId)
 	data, err := doGetJSON(url, query, headers, cookies)
 	if err != nil {
 		return nil
@@ -232,18 +225,22 @@ func getFirstBoxset(orignalResp *http.Response) map[string]interface{} {
 func ensureCollectionExist(id string, orignalResp *http.Response) bool {
 	boxsets := getFirstBoxset(orignalResp)
 	if boxsets == nil {
+		log.Println("boxsets is nil")
 		return false
 	}
 	collectionId := boxsets["Id"].(string)
 	collections := getAllCollections(collectionId, orignalResp)
 	if len(collections) == 0 {
+		log.Println("collections is empty")
 		return false
 	}
 	for _, collection := range collections {
 		if collection["Id"].(string) == id {
+			log.Println("collection exist", id)
 			return true
 		}
 	}
+	log.Println("collection not exist", id)
 	return false
 }
 
@@ -269,17 +266,8 @@ func getCollectionData(id string, orignalResp *http.Response, sort *struct{ By, 
 		query.Set("SortBy", orignalQuery.Get("SortBy"))
 		query.Set("SortOrder", orignalQuery.Get("SortOrder"))
 	}
-	// X-Emby 开头的参数优先从 query 获取，没有则从 Header 获取
-	xEmbyKeys := []string{"X-Emby-Client", "X-Emby-Device-Name", "X-Emby-Device-Id", "X-Emby-Client-Version", "X-Emby-Token", "X-Emby-Language"}
-	for _, key := range xEmbyKeys {
-		val := orignalQuery.Get(key)
-		if val == "" {
-			val = orignalResp.Request.Header.Get(key)
-		}
-		if val != "" {
-			query.Set(key, val)
-		}
-	}
+
+	setXEmbyParams(query, orignalResp.Request.URL.Query(), orignalResp.Request.Header)
 
 	headers := http.Header{}
 	headers.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
@@ -289,7 +277,6 @@ func getCollectionData(id string, orignalResp *http.Response, sort *struct{ By, 
 	cookies := orignalResp.Request.Cookies()
 
 	userId := getUserId(orignalResp)
-
 	url := embyURL("/emby/Users/{userId}/Items", userId)
 	data, err := doGetJSON(url, query, headers, cookies)
 	if err != nil {
