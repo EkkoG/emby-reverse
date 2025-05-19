@@ -98,15 +98,14 @@ func getCollectionIDByHashID(hashID string) (string, bool) {
 	return "", false
 }
 
-// 获取 userId 和 token
-func getUserIdAndToken(resp *http.Response) (string, string) {
+// 获取 userId
+func getUserId(resp *http.Response) string {
 	parts := strings.Split(resp.Request.URL.Path, "/")
 	userId := ""
 	if len(parts) > 3 {
 		userId = parts[3]
 	}
-	token := resp.Request.URL.Query().Get("X-Emby-Token")
-	return userId, token
+	return userId
 }
 
 // 拼接 Emby API URL
@@ -150,12 +149,11 @@ func doGetJSON(
 }
 
 func getAllCollections(boxId string, orignalResp *http.Response) []map[string]interface{} {
-	userId, token := getUserIdAndToken(orignalResp)
+	userId := getUserId(orignalResp)
 	url := embyURL("/emby/Users/{userId}/Items", userId)
 
 	query := orignalResp.Request.URL.Query()
 	query.Set("ParentId", boxId)
-	query.Set("X-Emby-Token", token)
 	query.Set("X-Emby-Language", orignalResp.Request.Header.Get("Accept-Language"))
 
 	headers := http.Header{}
@@ -164,6 +162,18 @@ func getAllCollections(boxId string, orignalResp *http.Response) []map[string]in
 	headers.Set("accept", "application/json")
 
 	cookies := orignalResp.Request.Cookies()
+
+	// X-Emby 开头的参数优先从 query 获取，没有则从 Header 获取
+	xEmbyKeys := []string{"X-Emby-Client", "X-Emby-Device-Name", "X-Emby-Device-Id", "X-Emby-Client-Version", "X-Emby-Token", "X-Emby-Language"}
+	for _, key := range xEmbyKeys {
+		val := orignalResp.Request.URL.Query().Get(key)
+		if val == "" {
+			val = orignalResp.Request.Header.Get(key)
+		}
+		if val != "" {
+			query.Set(key, val)
+		}
+	}
 
 	data, err := doGetJSON(url, query, headers, cookies)
 	if err != nil {
@@ -177,11 +187,10 @@ func getAllCollections(boxId string, orignalResp *http.Response) []map[string]in
 }
 
 func getFirstBoxset(orignalResp *http.Response) map[string]interface{} {
-	userId, token := getUserIdAndToken(orignalResp)
+	userId := getUserId(orignalResp)
 	url := embyURL("/emby/Users/{userId}/Views", userId)
 
 	query := orignalResp.Request.URL.Query()
-	query.Set("X-Emby-Token", token)
 	query.Set("X-Emby-Language", orignalResp.Request.Header.Get("Accept-Language"))
 
 	headers := http.Header{}
@@ -190,6 +199,18 @@ func getFirstBoxset(orignalResp *http.Response) map[string]interface{} {
 	headers.Set("accept", "application/json")
 
 	cookies := orignalResp.Request.Cookies()
+
+	// X-Emby 开头的参数优先从 query 获取，没有则从 Header 获取
+	xEmbyKeys := []string{"X-Emby-Client", "X-Emby-Device-Name", "X-Emby-Device-Id", "X-Emby-Client-Version", "X-Emby-Token", "X-Emby-Language"}
+	for _, key := range xEmbyKeys {
+		val := orignalResp.Request.URL.Query().Get(key)
+		if val == "" {
+			val = orignalResp.Request.Header.Get(key)
+		}
+		if val != "" {
+			query.Set(key, val)
+		}
+	}
 
 	data, err := doGetJSON(url, query, headers, cookies)
 	if err != nil {
@@ -248,12 +269,17 @@ func getCollectionData(id string, orignalResp *http.Response, sort *struct{ By, 
 		query.Set("SortBy", orignalQuery.Get("SortBy"))
 		query.Set("SortOrder", orignalQuery.Get("SortOrder"))
 	}
-	query.Set("X-Emby-Client", orignalQuery.Get("X-Emby-Client"))
-	query.Set("X-Emby-Device-Name", orignalQuery.Get("X-Emby-Device-Name"))
-	query.Set("X-Emby-Device-Id", orignalQuery.Get("X-Emby-Device-Id"))
-	query.Set("X-Emby-Client-Version", orignalQuery.Get("X-Emby-Client-Version"))
-	query.Set("X-Emby-Token", orignalQuery.Get("X-Emby-Token"))
-	query.Set("X-Emby-Language", orignalQuery.Get("X-Emby-Language"))
+	// X-Emby 开头的参数优先从 query 获取，没有则从 Header 获取
+	xEmbyKeys := []string{"X-Emby-Client", "X-Emby-Device-Name", "X-Emby-Device-Id", "X-Emby-Client-Version", "X-Emby-Token", "X-Emby-Language"}
+	for _, key := range xEmbyKeys {
+		val := orignalQuery.Get(key)
+		if val == "" {
+			val = orignalResp.Request.Header.Get(key)
+		}
+		if val != "" {
+			query.Set(key, val)
+		}
+	}
 
 	headers := http.Header{}
 	headers.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
@@ -262,7 +288,8 @@ func getCollectionData(id string, orignalResp *http.Response, sort *struct{ By, 
 
 	cookies := orignalResp.Request.Cookies()
 
-	userId, _ := getUserIdAndToken(orignalResp)
+	userId := getUserId(orignalResp)
+
 	url := embyURL("/emby/Users/{userId}/Items", userId)
 	data, err := doGetJSON(url, query, headers, cookies)
 	if err != nil {
@@ -276,15 +303,16 @@ func hookImage(resp *http.Response) error {
 	log.Println("hookImage")
 	// get tag
 	tag := resp.Request.URL.Query().Get("tag")
+	if tag == "" {
+		tag = resp.Request.URL.Query().Get("Tag")
+	}
 	for _, lib := range config.Library {
 		if HashNameToID(lib.Name) == tag {
 			log.Println("hookImage tag", tag)
-			// read image from ./images/
 			image, err := os.ReadFile(lib.Image)
 			if err != nil {
 				return err
 			}
-			// 读取图片类型
 			contentType := http.DetectContentType(image)
 			encoding := resp.Header.Get("Content-Encoding")
 			encodedBody, err := encodeBodyByContentEncoding(image, encoding)
@@ -375,6 +403,9 @@ func hookDetailIntro(resp *http.Response) error {
 		if HashNameToID(lib.Name) == id {
 			data["Name"] = lib.Name
 			data["Id"] = id
+			data["ImageTags"] = map[string]string{
+				"Primary": HashNameToID(lib.Name),
+			}
 			break
 		}
 	}
@@ -389,6 +420,7 @@ func hookDetailIntro(resp *http.Response) error {
 	}
 	resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
 	resp.ContentLength = int64(len(encodedBody))
+	resp.Header.Set("Content-Type", "application/json")
 	resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
 	if encoding == "" {
 		resp.Header.Del("Content-Encoding")
@@ -422,6 +454,7 @@ func hookDetails(resp *http.Response) error {
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
 		resp.ContentLength = int64(len(encodedBody))
+		resp.Header.Set("Content-Type", "application/json")
 		resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
 		if encoding == "" {
 			resp.Header.Del("Content-Encoding")
