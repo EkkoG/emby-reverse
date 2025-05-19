@@ -278,6 +278,8 @@ func hookImage(resp *http.Response) error {
 			if err != nil {
 				return err
 			}
+			// 读取图片类型
+			contentType := http.DetectContentType(image)
 			encoding := resp.Header.Get("Content-Encoding")
 			encodedBody, err := encodeBodyByContentEncoding(image, encoding)
 			if err != nil {
@@ -286,6 +288,7 @@ func hookImage(resp *http.Response) error {
 			resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
 			resp.ContentLength = int64(len(encodedBody))
 			resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
+			resp.Header.Set("Content-Type", contentType)
 			if encoding == "" {
 				resp.Header.Del("Content-Encoding")
 			} else {
