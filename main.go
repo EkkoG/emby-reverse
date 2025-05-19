@@ -444,10 +444,10 @@ func hookLatest(resp *http.Response) error {
 		}
 		log.Println("collectionID", collectionID)
 		order := struct {
-			By   string
+			By    string
 			Order string
 		}{
-			By:   "DateCreated,SortName",
+			By:    "DateCreated,SortName",
 			Order: "Descending",
 		}
 		items := getCollectionData(collectionID, resp, &order)["Items"].([]interface{})
@@ -666,15 +666,27 @@ func main() {
 	proxy.Director = func(req *http.Request) {
 		originalDirector(req)
 		req.Host = target.Host
-		// 添加 X-Forwarded-For
-		if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+
+		// 获取客户端IP
+		clientIP, _, _ := net.SplitHostPort(req.RemoteAddr)
+		if clientIP != "" {
+			// X-Forwarded-For
 			prior := req.Header.Get("X-Forwarded-For")
 			if prior != "" {
 				req.Header.Set("X-Forwarded-For", prior+", "+clientIP)
 			} else {
 				req.Header.Set("X-Forwarded-For", clientIP)
 			}
+			// X-Real-IP
+			req.Header.Set("X-Real-IP", clientIP)
 		}
+
+		// X-Forwarded-Protocol
+		scheme := "http"
+		if req.TLS != nil {
+			scheme = "https"
+		}
+		req.Header.Set("X-Forwarded-Protocol", scheme)
 	}
 
 	// 修改响应，处理重定向
