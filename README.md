@@ -16,6 +16,7 @@ Create a `config.yaml` file in the project root directory:
 
 ```yaml
 emby_server: http://192.168.33.120:8096
+hide_real_library: true
 library:
   - name: All Movies
     collection_id: 8960
@@ -30,6 +31,7 @@ library:
   - `name`: Display name of the library (must be unique)
   - `collection_id`: Actual Emby collection ID
   - `image`: Path to the image file for this library (used for custom image service)
+  - `hide_real_library`: (optional, default: false) If set to true, only virtual libraries will be shown in Emby views, hiding all real libraries.
 
 ## Build & Run
 

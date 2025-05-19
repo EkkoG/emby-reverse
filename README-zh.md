@@ -14,6 +14,7 @@
 
 ```yaml
 emby_server: http://192.168.33.120:8096
+hide_real_library: true
 library:
   - name: 所有电影
     collection_id: 8960
@@ -28,6 +29,7 @@ library:
   - `name`：媒体库显示名称, 须唯一
   - `collection_id`：Emby 实际集合 ID
   - `image`：该库的图片文件路径（用于自定义图片服务）
+  - `hide_real_library`：（可选，默认 false）如设为 true，则 Emby 视图中只显示虚拟库，隐藏所有真实库。
 
 ## 构建与运行
 
