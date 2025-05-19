@@ -278,10 +278,19 @@ func hookImage(resp *http.Response) error {
 			if err != nil {
 				return err
 			}
-			resp.Body = io.NopCloser(bytes.NewReader(image))
-			resp.ContentLength = int64(len(image))
-			resp.Header.Set("Content-Length", strconv.Itoa(len(image)))
-			resp.Header.Del("Content-Encoding")
+			encoding := resp.Header.Get("Content-Encoding")
+			encodedBody, err := encodeBodyByContentEncoding(image, encoding)
+			if err != nil {
+				return err
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
+			resp.ContentLength = int64(len(encodedBody))
+			resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
+			if encoding == "" {
+				resp.Header.Del("Content-Encoding")
+			} else {
+				resp.Header.Set("Content-Encoding", encoding)
+			}
 			resp.StatusCode = 200
 			resp.Status = "200 OK"
 			return nil
@@ -364,10 +373,19 @@ func hookDetailIntro(resp *http.Response) error {
 	if err != nil {
 		return err
 	}
-	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	resp.ContentLength = int64(len(bodyBytes))
-	resp.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
-	resp.Header.Del("Content-Encoding")
+	encoding := resp.Header.Get("Content-Encoding")
+	encodedBody, err := encodeBodyByContentEncoding(bodyBytes, encoding)
+	if err != nil {
+		return err
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
+	resp.ContentLength = int64(len(encodedBody))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
+	if encoding == "" {
+		resp.Header.Del("Content-Encoding")
+	} else {
+		resp.Header.Set("Content-Encoding", encoding)
+	}
 	resp.StatusCode = 200
 	resp.Status = "200 OK"
 	return nil
@@ -388,9 +406,19 @@ func hookDetails(resp *http.Response) error {
 		if err != nil {
 			return err
 		}
-		resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		resp.ContentLength = int64(len(bodyBytes))
-		resp.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
+		encoding := resp.Header.Get("Content-Encoding")
+		encodedBody, err := encodeBodyByContentEncoding(bodyBytes, encoding)
+		if err != nil {
+			return err
+		}
+		resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
+		resp.ContentLength = int64(len(encodedBody))
+		resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
+		if encoding == "" {
+			resp.Header.Del("Content-Encoding")
+		} else {
+			resp.Header.Set("Content-Encoding", encoding)
+		}
 		return nil
 	}
 	return nil
@@ -411,10 +439,19 @@ func hookLatest(resp *http.Response) error {
 		if err != nil {
 			return err
 		}
-		resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		resp.ContentLength = int64(len(bodyBytes))
-		resp.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
-		resp.Header.Del("Content-Encoding")
+		encoding := resp.Header.Get("Content-Encoding")
+		encodedBody, err := encodeBodyByContentEncoding(bodyBytes, encoding)
+		if err != nil {
+			return err
+		}
+		resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
+		resp.ContentLength = int64(len(encodedBody))
+		resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
+		if encoding == "" {
+			resp.Header.Del("Content-Encoding")
+		} else {
+			resp.Header.Set("Content-Encoding", encoding)
+		}
 		return nil
 	}
 	return nil
@@ -530,10 +567,19 @@ func hookViews(resp *http.Response) error {
 	if err != nil {
 		return err
 	}
-	resp.Body = io.NopCloser(bytes.NewReader(newBody))
-	resp.ContentLength = int64(len(newBody))
-	resp.Header.Set("Content-Length", strconv.Itoa(len(newBody)))
-	resp.Header.Del("Content-Encoding")
+	encoding := resp.Header.Get("Content-Encoding")
+	encodedBody, err := encodeBodyByContentEncoding(newBody, encoding)
+	if err != nil {
+		return err
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
+	resp.ContentLength = int64(len(encodedBody))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
+	if encoding == "" {
+		resp.Header.Del("Content-Encoding")
+	} else {
+		resp.Header.Set("Content-Encoding", encoding)
+	}
 	return nil
 }
 
@@ -546,6 +592,41 @@ func modifyResponse(resp *http.Response) error {
 		}
 	}
 	return nil
+}
+
+func encodeBodyByContentEncoding(body []byte, encoding string) ([]byte, error) {
+	var buf bytes.Buffer
+	switch encoding {
+	case "gzip":
+		gz := gzip.NewWriter(&buf)
+		_, err := gz.Write(body)
+		if err != nil {
+			return nil, err
+		}
+		gz.Close()
+		return buf.Bytes(), nil
+	case "deflate":
+		df, err := flate.NewWriter(&buf, flate.DefaultCompression)
+		if err != nil {
+			return nil, err
+		}
+		_, err = df.Write(body)
+		if err != nil {
+			return nil, err
+		}
+		df.Close()
+		return buf.Bytes(), nil
+	case "br":
+		br := brotli.NewWriter(&buf)
+		_, err := br.Write(body)
+		if err != nil {
+			return nil, err
+		}
+		br.Close()
+		return buf.Bytes(), nil
+	default:
+		return body, nil // 不压缩
+	}
 }
 
 func main() {
