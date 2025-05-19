@@ -226,7 +226,8 @@ func ensureCollectionExist(id string, orignalResp *http.Response) bool {
 	return false
 }
 
-func getCollectionData(id string, orignalResp *http.Response) map[string]interface{} {
+// getCollectionData 增加 sort 参数
+func getCollectionData(id string, orignalResp *http.Response, sort *struct{ By, Order string }) map[string]interface{} {
 	if !ensureCollectionExist(id, orignalResp) {
 		log.Println("collection not exist, will return empty collection", id)
 		emptyCollection := map[string]interface{}{}
@@ -240,8 +241,13 @@ func getCollectionData(id string, orignalResp *http.Response) map[string]interfa
 	query.Set("ImageTypeLimit", orignalQuery.Get("ImageTypeLimit"))
 	query.Set("Fields", orignalQuery.Get("Fields"))
 	query.Set("EnableTotalRecordCount", orignalQuery.Get("EnableTotalRecordCount"))
-	query.Set("SortBy", orignalQuery.Get("SortBy"))
-	query.Set("SortOrder", orignalQuery.Get("SortOrder"))
+	if sort != nil {
+		query.Set("SortBy", sort.By)
+		query.Set("SortOrder", sort.Order)
+	} else {
+		query.Set("SortBy", orignalQuery.Get("SortBy"))
+		query.Set("SortOrder", orignalQuery.Get("SortOrder"))
+	}
 	query.Set("X-Emby-Client", orignalQuery.Get("X-Emby-Client"))
 	query.Set("X-Emby-Device-Name", orignalQuery.Get("X-Emby-Device-Name"))
 	query.Set("X-Emby-Device-Id", orignalQuery.Get("X-Emby-Device-Id"))
@@ -404,7 +410,7 @@ func hookDetails(resp *http.Response) error {
 			return nil
 		}
 		log.Println("collectionID", collectionID)
-		bodyText := getCollectionData(collectionID, resp)
+		bodyText := getCollectionData(collectionID, resp, nil)
 		bodyBytes, err := json.Marshal(bodyText)
 		if err != nil {
 			return err
@@ -437,7 +443,14 @@ func hookLatest(resp *http.Response) error {
 			return nil
 		}
 		log.Println("collectionID", collectionID)
-		items := getCollectionData(collectionID, resp)["Items"].([]interface{})
+		order := struct {
+			By   string
+			Order string
+		}{
+			By:   "DateCreated,SortName",
+			Order: "Descending",
+		}
+		items := getCollectionData(collectionID, resp, &order)["Items"].([]interface{})
 		bodyBytes, err := json.Marshal(items)
 		if err != nil {
 			return err
