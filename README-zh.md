@@ -25,11 +25,11 @@ library:
 ```
 
 - `emby_server`：你的 Emby 服务器地址
+- `hide_real_library`：（可选，默认 false）如设为 true，则 Emby 视图中只显示虚拟库，隐藏所有真实库。
 - `library`：要注入的虚拟媒体库列表，每个库需包含：
   - `name`：媒体库显示名称, 须唯一
   - `collection_id`：Emby 实际集合 ID
   - `image`：该库的图片文件路径（用于自定义图片服务）
-  - `hide_real_library`：（可选，默认 false）如设为 true，则 Emby 视图中只显示虚拟库，隐藏所有真实库。
 
 ## 构建与运行
 

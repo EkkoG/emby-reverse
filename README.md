@@ -27,11 +27,11 @@ library:
 ```
 
 - `emby_server`: Your Emby server address
+- `hide_real_library`: (optional, default: false) If set to true, only virtual libraries will be shown in Emby views, hiding all real libraries.
 - `library`: List of virtual libraries to inject. Each library must include:
   - `name`: Display name of the library (must be unique)
   - `collection_id`: Actual Emby collection ID
   - `image`: Path to the image file for this library (used for custom image service)
-  - `hide_real_library`: (optional, default: false) If set to true, only virtual libraries will be shown in Emby views, hiding all real libraries.
 
 ## Build & Run
 
