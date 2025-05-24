@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -23,9 +24,12 @@ import (
 
 // ================== Config Struct ==================
 type Config struct {
-	EmbyServer      string    `yaml:"emby_server"`
-	HideRealLibrary bool      `yaml:"hide_real_library"`
-	Library         []Library `yaml:"library"`
+	EmbyServer         string    `yaml:"emby_server"`
+	HideRealLibrary    bool      `yaml:"hide_real_library"`
+	HidePlaylists      bool      `yaml:"hide_playlists"`
+	HideCollections    bool      `yaml:"hide_collections"`
+	HideAllSystemMedia bool      `yaml:"hide_all_system_media"`
+	Library            []Library `yaml:"library"`
 }
 
 type Library struct {
@@ -572,10 +576,14 @@ func hookViews(resp *http.Response) error {
 	if len(items) == 0 {
 		return nil
 	}
-	serverId := items[0].(map[string]interface{})["ServerId"].(string)
-	log.Println("Items count", len(data["Items"].([]interface{})))
+	typedItems := make([]map[string]interface{}, 0)
+	for _, item := range items {
+		typedItems = append(typedItems, item.(map[string]interface{}))
+	}
+	serverId := typedItems[0]["ServerId"].(string)
+	log.Println("Items count", len(typedItems))
 	// 遍历 config.Library，生成 item
-	var newItems []interface{}
+	var newItems []map[string]interface{}
 	for _, lib := range config.Library {
 		var item map[string]interface{}
 		err := json.Unmarshal([]byte(template), &item)
@@ -593,12 +601,34 @@ func hookViews(resp *http.Response) error {
 		newItems = append(newItems, item)
 	}
 	// 根据配置决定是否合并真实库
-	if config.HideRealLibrary {
-		items = newItems // 只显示虚拟库
+	if config.HideAllSystemMedia {
+		typedItems = []map[string]interface{}{}
 	} else {
-		items = append(newItems, items...) // 合并
+		// items = newItems // 只显示虚拟库
+		oldItems := []map[string]interface{}{}
+		for _, item := range typedItems {
+			hideType := make([]string, 0)
+			if config.HidePlaylists {
+				hideType = append(hideType, "playlists")
+			}
+			if config.HideCollections {
+				hideType = append(hideType, "boxsets")
+			}
+			if config.HideRealLibrary {
+				hideType = append(hideType, "movies", "tvshows")
+			}
+			if len(hideType) > 0 {
+				if slices.Contains(hideType, item["CollectionType"].(string)) {
+					continue
+				} else {
+					oldItems = append(oldItems, item)
+				}
+			}
+		}
+		typedItems = oldItems
 	}
-	data["Items"] = items
+	typedItems = append(newItems, typedItems...) // 合并
+	data["Items"] = typedItems
 	newBody, err := json.Marshal(data)
 	if err != nil {
 		return err
