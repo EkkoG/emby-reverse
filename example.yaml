@@ -1,8 +1,16 @@
 emby_server: http://192.168.33.120:8096
-hide_real_library: true
-hide_playlists: true
-hide_collections: true
-hide_all_system_media: true
+
+# hide all
+# hide:
+#   - all
+
+# https://dev.emby.media/doc/restapi/Browsing-the-Library.html#customized-presentations
+hide:
+  - music
+  - tvshows
+  - movies
+  - boxsets
+  - playlists
 library:
   - name: 所有电影
     collection_id: 8960

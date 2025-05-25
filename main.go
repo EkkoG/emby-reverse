@@ -25,10 +25,7 @@ import (
 // ================== Config Struct ==================
 type Config struct {
 	EmbyServer         string    `yaml:"emby_server"`
-	HideRealLibrary    bool      `yaml:"hide_real_library"`
-	HidePlaylists      bool      `yaml:"hide_playlists"`
-	HideCollections    bool      `yaml:"hide_collections"`
-	HideAllSystemMedia bool      `yaml:"hide_all_system_media"`
+	Hide               []string  `yaml:"hide"`
 	Library            []Library `yaml:"library"`
 }
 
@@ -601,24 +598,14 @@ func hookViews(resp *http.Response) error {
 		newItems = append(newItems, item)
 	}
 	// 根据配置决定是否合并真实库
-	if config.HideAllSystemMedia {
+	if slices.Contains(config.Hide, "all") {
 		typedItems = []map[string]interface{}{}
 	} else {
 		// items = newItems // 只显示虚拟库
 		oldItems := []map[string]interface{}{}
 		for _, item := range typedItems {
-			hideType := make([]string, 0)
-			if config.HidePlaylists {
-				hideType = append(hideType, "playlists")
-			}
-			if config.HideCollections {
-				hideType = append(hideType, "boxsets")
-			}
-			if config.HideRealLibrary {
-				hideType = append(hideType, "movies", "tvshows")
-			}
-			if len(hideType) > 0 {
-				if slices.Contains(hideType, item["CollectionType"].(string)) {
+			if len(config.Hide) > 0 {
+				if slices.Contains(config.Hide, item["CollectionType"].(string)) {
 					continue
 				} else {
 					oldItems = append(oldItems, item)
