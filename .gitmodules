@@ -1,0 +1,3 @@
+[submodule "justzerock-mp-plugin"]
+	path = justzerock-mp-plugin
+	url = https://github.com/justzerock/MoviePilot-Plugins.git

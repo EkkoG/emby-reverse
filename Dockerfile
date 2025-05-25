@@ -14,9 +14,14 @@ COPY . .
 RUN go build -o emby-virtual-lib main.go
 
 # 使用更小的基础镜像运行
-FROM alpine:latest
+FROM ghcr.io/astral-sh/uv:python3.12-alpine
 
 WORKDIR /app
+
+COPY . .
+
+RUN mkdir -p mediacovergenerator
+RUN cd mediacovergenerator && ln -s ../justzerock-mp-plugin/plugins.v2/mediacovergenerator/style_multi_1.py style_multi_1.py
 
 # 拷贝可执行文件和配置、图片等资源
 COPY --from=builder /app/emby-virtual-lib .

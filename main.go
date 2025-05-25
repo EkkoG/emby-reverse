@@ -5,18 +5,22 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"hash/fnv"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/exec"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/andybalholm/brotli"
 	"gopkg.in/yaml.v3"
@@ -24,9 +28,9 @@ import (
 
 // ================== Config Struct ==================
 type Config struct {
-	EmbyServer         string    `yaml:"emby_server"`
-	Hide               []string  `yaml:"hide"`
-	Library            []Library `yaml:"library"`
+	EmbyServer string    `yaml:"emby_server"`
+	Hide       []string  `yaml:"hide"`
+	Library    []Library `yaml:"library"`
 }
 
 type Library struct {
@@ -57,6 +61,12 @@ var responseHooks = []ResponseHook{
 	{hookDetailIntroRe, hookDetailIntro},
 	{hookImageRe, hookImage},
 }
+
+const imageDoneFile = "image_done.txt"
+
+var (
+	imageOnceMu sync.Mutex
+)
 
 // ================== Utility Functions ==================
 func LoadConfig(path string) (*Config, error) {
@@ -297,9 +307,29 @@ func hookImage(resp *http.Response) error {
 	for _, lib := range config.Library {
 		if HashNameToID(lib.Name) == tag {
 			log.Println("hookImage tag", tag)
-			image, err := os.ReadFile(lib.Image)
-			if err != nil {
-				return err
+			var image []byte
+			if lib.Image != "" {
+				userImage, err := os.ReadFile(lib.Image)
+				if err != nil {
+					return err
+				}
+				image = userImage
+			} else {
+				// image = []byte{}
+				path := fmt.Sprintf("images/%s.png", lib.Name)
+				// check if file exists
+				if _, err := os.Stat(path); os.IsNotExist(err) {
+					placeholder, err := os.ReadFile("assets/placeholder.png")
+					if err != nil {
+						return err
+					}
+					image = placeholder
+				} else {
+					image, err = os.ReadFile(path)
+					if err != nil {
+						return err
+					}
+				}
 			}
 			contentType := http.DetectContentType(image)
 			encoding := resp.Header.Get("Content-Encoding")
@@ -633,6 +663,21 @@ func hookViews(resp *http.Response) error {
 	} else {
 		resp.Header.Set("Content-Encoding", encoding)
 	}
+
+	// 异步获取图片
+	for _, lib := range config.Library {
+		libCopy := lib // 防止闭包变量问题
+		go func(l Library) {
+			// 这里可以只传递 l 和必要的参数
+			// 比如 userId、token 等
+			// getImage 需要调整为接收这些参数
+			err := getImage(&l, resp)
+			if err != nil {
+				log.Println("getImage error", err)
+			}
+		}(libCopy)
+	}
+
 	return nil
 }
 
@@ -680,6 +725,81 @@ func encodeBodyByContentEncoding(body []byte, encoding string) ([]byte, error) {
 	default:
 		return body, nil // 不压缩
 	}
+}
+
+func loadImageDone() map[string]bool {
+	done := make(map[string]bool)
+	data, err := os.ReadFile(imageDoneFile)
+	if err != nil {
+		return done // 文件不存在视为都没处理过
+	}
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if line != "" {
+			done[line] = true
+		}
+	}
+	return done
+}
+
+func saveImageDone(libName string) error {
+	f, err := os.OpenFile(imageDoneFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(libName + "\n")
+	return err
+}
+
+func getImage(lib *Library, orignalResp *http.Response) error {
+	imageOnceMu.Lock()
+	imageDone := loadImageDone()
+	if imageDone[lib.Name] {
+		imageOnceMu.Unlock()
+		log.Println("image done, skip", lib.Name)
+		return nil // 已经处理过
+	}
+	imageOnceMu.Unlock()
+
+	items := getCollectionData(lib.CollectionID, orignalResp, nil)["Items"].([]interface{})
+	// 随机选择 9 个
+	for i := 0; i < 9; i++ {
+		randomIndex := rand.Intn(len(items))
+		imageId := items[randomIndex].(map[string]interface{})["ImageTags"].(map[string]interface{})["Primary"].(string)
+		itemId := items[randomIndex].(map[string]interface{})["Id"].(string)
+		imageUrl := fmt.Sprintf("%s/emby/Items/%s/Images/Primary?maxHeight=600&maxWidth=400&tag=%s&quality=90", config.EmbyServer, itemId, imageId)
+		image, err := http.Get(imageUrl)
+		if err != nil {
+			return err
+		}
+		imageBytes, err := io.ReadAll(image.Body)
+		image.Body.Close()
+		if err != nil {
+			return err
+		}
+		os.MkdirAll(fmt.Sprintf("images/%s", lib.Name), 0755)
+		err = os.WriteFile(fmt.Sprintf("images/%s/%d.jpg", lib.Name, i + 1), imageBytes, 0644)
+		if err != nil {
+			return err
+		}
+	}
+	// uv run python gen.py
+	// call cmd to gen image
+	cmd := exec.Command("uv", "run", "python", "cover_gen.py", lib.Name)
+	cmd.Dir = "."
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	// 只有全部成功后才记录
+	imageOnceMu.Lock()
+	err = saveImageDone(lib.Name)
+	imageOnceMu.Unlock()
+	return err
 }
 
 func main() {
