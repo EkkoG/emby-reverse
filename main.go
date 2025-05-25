@@ -256,12 +256,12 @@ func ensureCollectionExist(id string, orignalResp *http.Response) bool {
 
 // getCollectionData 增加 sort 参数
 func getCollectionData(id string, orignalResp *http.Response, sort *struct{ By, Order string }) map[string]interface{} {
-	if !ensureCollectionExist(id, orignalResp) {
-		log.Println("collection not exist, will return empty collection", id)
-		emptyCollection := map[string]interface{}{}
-		emptyCollection["Items"] = []interface{}{}
-		return emptyCollection
-	}
+	// if !ensureCollectionExist(id, orignalResp) {
+	// 	log.Println("collection not exist, will return empty collection", id)
+	// 	emptyCollection := map[string]interface{}{}
+	// 	emptyCollection["Items"] = []interface{}{}
+	// 	return emptyCollection
+	// }
 
 	orignalQuery := orignalResp.Request.URL.Query()
 	query := url.Values{} // 避免污染原始 query
