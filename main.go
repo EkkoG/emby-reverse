@@ -206,7 +206,6 @@ func getFirstBoxset(orignalResp *http.Response) map[string]interface{} {
 	query := url.Values{}
 
 	setXEmbyParams(query, orignalResp.Request.URL.Query(), orignalResp.Request.Header)
-	log.Println("getFirstBoxset query", query)
 
 	headers := http.Header{}
 	headers.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
