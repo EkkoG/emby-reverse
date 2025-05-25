@@ -16,6 +16,7 @@ on:
       - 'Dockerfile'
       - 'docker-compose.yml'
       - '.github/workflows/docker-publish.yml'
+      - 'justzerock-mp-plugin'
   pull_request:
     branches: [ "main" ]
     paths:
@@ -25,6 +26,7 @@ on:
       - 'Dockerfile'
       - 'docker-compose.yml'
       - '.github/workflows/docker-publish.yml'
+      - 'justzerock-mp-plugin'
   schedule:
     - cron: '36 19 * * *'
 
