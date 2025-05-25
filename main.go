@@ -62,7 +62,7 @@ var responseHooks = []ResponseHook{
 	{hookImageRe, hookImage},
 }
 
-const imageDoneFile = "image_done.txt"
+const imageDoneFile = "images/image_done.txt"
 
 var (
 	imageOnceMu sync.Mutex
