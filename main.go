@@ -20,10 +20,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/andybalholm/brotli"
+	"github.com/dgraph-io/badger/v4"
 	"gopkg.in/yaml.v3"
 )
 
@@ -64,11 +64,7 @@ var responseHooks = []ResponseHook{
 	{hookImageRe, hookImage},
 }
 
-const imageDoneFile = "images/image_done.txt"
-
-var (
-	imageOnceMu sync.Mutex
-)
+var badgerDB *badger.DB
 
 // ================== Utility Functions ==================
 func LoadConfig(path string) (*Config, error) {
@@ -705,40 +701,19 @@ func encodeBodyByContentEncoding(body []byte, encoding string) ([]byte, error) {
 	}
 }
 
-func loadImageDone() map[string]bool {
-	done := make(map[string]bool)
-	data, err := os.ReadFile(imageDoneFile)
-	if err != nil {
-		return done // 文件不存在视为都没处理过
-	}
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		if line != "" {
-			done[line] = true
-		}
-	}
-	return done
-}
-
-func saveImageDone(libName string) error {
-	f, err := os.OpenFile(imageDoneFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = f.WriteString(libName + "\n")
-	return err
-}
-
 func getImage(lib *Library, orignalResp *http.Response) error {
-	imageOnceMu.Lock()
-	imageDone := loadImageDone()
-	if imageDone[lib.Name] {
-		imageOnceMu.Unlock()
-		log.Println("image done, skip", lib.Name)
-		return nil // 已经处理过
-	}
-	imageOnceMu.Unlock()
+	badgerDB.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(lib.Name))
+		if err != nil {
+			return err
+		}
+		return item.Value(func(val []byte) error {
+			if string(val) == "1" {
+				return nil
+			}
+			return nil
+		})
+	})
 
 	items := getCollectionData(lib.CollectionID, orignalResp, nil)["Items"].([]interface{})
 	itemCount := len(items)
@@ -796,14 +771,22 @@ func getImage(lib *Library, orignalResp *http.Response) error {
 		return err
 	}
 
-	// 只有全部成功后才记录
-	imageOnceMu.Lock()
-	err = saveImageDone(lib.Name)
-	imageOnceMu.Unlock()
+	badgerDB.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(lib.Name), []byte("1"))
+	})
 	return err
 }
 
 func main() {
+	// 初始化 Badger
+	var err error
+	badgerDB, err = badger.Open(badger.DefaultOptions("images/badger_db").WithLogger(nil))
+	if err != nil {
+		log.Println("badger open error", err)
+		return
+	}
+	defer badgerDB.Close()
+
 	cfg, err := LoadConfig("config.yaml")
 	if err != nil {
 		log.Println("LoadConfig error", err)
