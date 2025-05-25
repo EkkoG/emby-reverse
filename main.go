@@ -236,7 +236,7 @@ func ensureCollectionExist(id string, orignalResp *http.Response) bool {
 }
 
 // getCollectionData 增加 sort 参数
-func getCollectionData(id string, orignalResp *http.Response, sort *struct{ By, Order string }) map[string]interface{} {
+func getCollectionData(id string, orignalResp *http.Response, extQuery url.Values) map[string]interface{} {
 	// if !ensureCollectionExist(id, orignalResp) {
 	// 	log.Println("collection not exist, will return empty collection", id)
 	// 	emptyCollection := map[string]interface{}{}
@@ -250,9 +250,10 @@ func getCollectionData(id string, orignalResp *http.Response, sort *struct{ By, 
 	query.Set("ImageTypeLimit", orignalQuery.Get("ImageTypeLimit"))
 	query.Set("Fields", orignalQuery.Get("Fields"))
 	query.Set("EnableTotalRecordCount", orignalQuery.Get("EnableTotalRecordCount"))
-	if sort != nil {
-		query.Set("SortBy", sort.By)
-		query.Set("SortOrder", sort.Order)
+	if extQuery != nil {
+		for k, v := range extQuery {
+			query.Set(k, v[0])
+		}
 	} else {
 		query.Set("SortBy", orignalQuery.Get("SortBy"))
 		query.Set("SortOrder", orignalQuery.Get("SortOrder"))
@@ -460,14 +461,11 @@ func hookLatest(resp *http.Response) error {
 		return nil
 	}
 	log.Println("collectionID", lib.CollectionID)
-	order := struct {
-		By    string
-		Order string
-	}{
-		By:    "DateCreated,SortName",
-		Order: "Descending",
-	}
-	items := getCollectionData(lib.CollectionID, resp, &order)["Items"].([]interface{})
+	query := url.Values{}
+	query.Set("SortBy", "DateCreated,SortName")
+	query.Set("SortOrder", "Descending")
+	query.Set("Limit", resp.Request.URL.Query().Get("Limit"))
+	items := getCollectionData(lib.CollectionID, resp, query)["Items"].([]interface{})
 	bodyBytes, err := json.Marshal(items)
 	if err != nil {
 		return err
