@@ -16,7 +16,13 @@ Create a `config.yaml` file in the project root directory:
 
 ```yaml
 emby_server: http://192.168.33.120:8096
-hide_real_library: true
+emby_api_key: 1234567890
+hide:
+  - music
+  - tvshows
+  - movies
+  - boxsets
+  - playlists
 library:
   - name: All Movies
     collection_id: 8960
@@ -27,7 +33,8 @@ library:
 ```
 
 - `emby_server`: Your Emby server address
-- `hide_real_library`: (optional, default: false) If set to true, only virtual libraries will be shown in Emby views, hiding all real libraries.
+- `emby_api_key`: (optional, default: empty) If set, the program will fetch image from emby server automatically.
+- `hide`: (optional, default: empty) If set, the program will hide the libraries in Emby views.
 - `library`: List of virtual libraries to inject. Each library must include:
   - `name`: Display name of the library (must be unique)
   - `collection_id`: Actual Emby collection ID

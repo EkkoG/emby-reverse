@@ -1,5 +1,6 @@
 emby_server: http://192.168.33.120:8096
-
+# if you want to gen lib cover automatically, you need to set emby_api_key to fetch image from emby server
+emby_api_key: 1234567890
 # hide all
 # hide:
 #   - all
@@ -14,6 +15,7 @@ hide:
 library:
   - name: 所有电影
     collection_id: 8960
+    # if you want to gen lib cover automatically, you should not set image
     image: ./images/Thumb.webp #213 × 120 px 或者相同比例
   - name: 所有电视剧
     collection_id: 8961
