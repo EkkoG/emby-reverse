@@ -1,7 +1,7 @@
-
 from mediacovergenerator.style_multi_1 import create_style_multi_1
 import base64
 import sys
+from PIL import Image
 
 if __name__ == "__main__":
     library_name = sys.argv[1]
@@ -12,3 +12,6 @@ if __name__ == "__main__":
         d = base64.b64decode(res)
         with open(f"images/{library_name}.png", "wb") as f:
             f.write(d)
+        img = Image.open(f"images/{library_name}.png")
+        img = img.resize((213, 120), Image.LANCZOS)
+        img.save(f"images/{library_name}.png")
