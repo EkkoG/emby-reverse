@@ -30,6 +30,7 @@ import (
 // ================== Config Struct ==================
 type Config struct {
 	EmbyServer string    `yaml:"emby_server"`
+	EmbyApiKey string    `yaml:"emby_api_key"`
 	Hide       []string  `yaml:"hide"`
 	Library    []Library `yaml:"library"`
 }
@@ -230,6 +231,24 @@ func ensureCollectionExist(id string, orignalResp *http.Response) bool {
 	}
 	log.Println("collection not exist", id)
 	return false
+}
+
+func getCollectionDataWithApi(id string, apiKey string) map[string]interface{} {
+	query := url.Values{}
+	query.Set("ParentId", id)
+	query.Set("ImageTypeLimit", "1")
+	query.Set("Fields", "BasicSyncInfo,CanDelete,CanDownload,PrimaryImageAspectRatio,ProductionYear,Status,EndDate")
+	query.Set("EnableTotalRecordCount", "true")
+	query.Set("API_KEY", apiKey)
+
+	url := fmt.Sprintf("%s/emby/Items", config.EmbyServer)
+	headers := http.Header{}
+	headers.Set("accept", "application/json")
+	data, err := doGetJSON(url, query, headers, nil)
+	if err != nil {
+		return nil
+	}
+	return data
 }
 
 // getCollectionData 增加 sort 参数
@@ -634,20 +653,6 @@ func hookViews(resp *http.Response) error {
 		resp.Header.Set("Content-Encoding", encoding)
 	}
 
-	// 异步获取图片
-	for _, lib := range config.Library {
-		libCopy := lib // 防止闭包变量问题
-		go func(l Library) {
-			// 这里可以只传递 l 和必要的参数
-			// 比如 userId、token 等
-			// getImage 需要调整为接收这些参数
-			err := getImage(&l, resp)
-			if err != nil {
-				log.Println("getImage error", err)
-			}
-		}(libCopy)
-	}
-
 	return nil
 }
 
@@ -701,7 +706,7 @@ func encodeBodyByContentEncoding(body []byte, encoding string) ([]byte, error) {
 	}
 }
 
-func getImage(lib *Library, orignalResp *http.Response) error {
+func getImage(lib *Library) error {
 	badgerDB.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(lib.Name))
 		if err != nil {
@@ -715,7 +720,7 @@ func getImage(lib *Library, orignalResp *http.Response) error {
 		})
 	})
 
-	items := getCollectionData(lib.CollectionID, orignalResp, nil)["Items"].([]interface{})
+	items := getCollectionDataWithApi(lib.CollectionID, config.EmbyApiKey)["Items"].([]interface{})
 	itemCount := len(items)
 	if itemCount == 0 {
 		return nil // 没有可用图片
@@ -841,6 +846,20 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		proxy.ServeHTTP(w, r)
 	})
+
+	// 异步获取图片
+	for _, lib := range config.Library {
+		libCopy := lib // 防止闭包变量问题
+		go func(l Library) {
+			// 这里可以只传递 l 和必要的参数
+			// 比如 userId、token 等
+			// getImage 需要调整为接收这些参数
+			err := getImage(&l)
+			if err != nil {
+				log.Println("getImage error", err)
+			}
+		}(libCopy)
+	}
 
 	log.Println("emby-virtual-lib listen on :8000")
 	http.ListenAndServe(":8000", nil)
