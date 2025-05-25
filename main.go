@@ -767,11 +767,34 @@ func getImage(lib *Library, orignalResp *http.Response) error {
 	imageOnceMu.Unlock()
 
 	items := getCollectionData(lib.CollectionID, orignalResp, nil)["Items"].([]interface{})
-	// 随机选择 9 个
-	for i := 0; i < 9; i++ {
-		randomIndex := rand.Intn(len(items))
-		imageId := items[randomIndex].(map[string]interface{})["ImageTags"].(map[string]interface{})["Primary"].(string)
-		itemId := items[randomIndex].(map[string]interface{})["Id"].(string)
+	itemCount := len(items)
+	if itemCount == 0 {
+		return nil // 没有可用图片
+	}
+
+	var selected []interface{}
+	if itemCount <= 9 {
+		selected = items
+	} else {
+		// 洗牌
+		rand.Shuffle(itemCount, func(i, j int) { items[i], items[j] = items[j], items[i] })
+		selected = items[:9]
+	}
+
+	for i, itemRaw := range selected {
+		item := itemRaw.(map[string]interface{})
+		imageTags, ok := item["ImageTags"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		imageId, ok := imageTags["Primary"].(string)
+		if !ok {
+			continue
+		}
+		itemId, ok := item["Id"].(string)
+		if !ok {
+			continue
+		}
 		imageUrl := fmt.Sprintf("%s/emby/Items/%s/Images/Primary?maxHeight=600&maxWidth=400&tag=%s&quality=90", config.EmbyServer, itemId, imageId)
 		image, err := http.Get(imageUrl)
 		if err != nil {
