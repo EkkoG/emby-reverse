@@ -40,6 +40,7 @@ type Library struct {
 }
 
 var config Config
+var libraryMap = map[string]Library{}
 
 var (
 	hookViewsRe       = regexp.MustCompile(`^/emby/Users/[^/]+/Views$`)
@@ -87,26 +88,6 @@ func HashNameToID(name string) string {
 	h := fnv.New32a()
 	h.Write([]byte(name))
 	return strconv.FormatUint(uint64(h.Sum32()), 10)
-}
-
-// Check if id is a hash of any library name in config
-func isLibraryHashID(id string) bool {
-	for _, lib := range config.Library {
-		if HashNameToID(lib.Name) == id {
-			return true
-		}
-	}
-	return false
-}
-
-// Get collection_id by hash id
-func getCollectionIDByHashID(hashID string) (string, bool) {
-	for _, lib := range config.Library {
-		if HashNameToID(lib.Name) == hashID {
-			return lib.CollectionID, true
-		}
-	}
-	return "", false
 }
 
 // 获取 userId
@@ -303,53 +284,52 @@ func hookImage(resp *http.Response) error {
 	if tag == "" {
 		tag = resp.Request.URL.Query().Get("Tag")
 	}
-	for _, lib := range config.Library {
-		if HashNameToID(lib.Name) == tag {
-			log.Println("hookImage tag", tag)
-			var image []byte
-			if lib.Image != "" {
-				userImage, err := os.ReadFile(lib.Image)
-				if err != nil {
-					return err
-				}
-				image = userImage
-			} else {
-				// image = []byte{}
-				path := fmt.Sprintf("images/%s.png", lib.Name)
-				// check if file exists
-				if _, err := os.Stat(path); os.IsNotExist(err) {
-					placeholder, err := os.ReadFile("assets/placeholder.png")
-					if err != nil {
-						return err
-					}
-					image = placeholder
-				} else {
-					image, err = os.ReadFile(path)
-					if err != nil {
-						return err
-					}
-				}
-			}
-			contentType := http.DetectContentType(image)
-			encoding := resp.Header.Get("Content-Encoding")
-			encodedBody, err := encodeBodyByContentEncoding(image, encoding)
+	lib, ok := libraryMap[tag]
+	if !ok {
+		return nil
+	}
+	log.Println("hookImage tag", tag)
+	var image []byte
+	if lib.Image != "" {
+		userImage, err := os.ReadFile(lib.Image)
+		if err != nil {
+			return err
+		}
+		image = userImage
+	} else {
+		// image = []byte{}
+		path := fmt.Sprintf("images/%s.png", lib.Name)
+		// check if file exists
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			placeholder, err := os.ReadFile("assets/placeholder.png")
 			if err != nil {
 				return err
 			}
-			resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
-			resp.ContentLength = int64(len(encodedBody))
-			resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
-			resp.Header.Set("Content-Type", contentType)
-			if encoding == "" {
-				resp.Header.Del("Content-Encoding")
-			} else {
-				resp.Header.Set("Content-Encoding", encoding)
+			image = placeholder
+		} else {
+			image, err = os.ReadFile(path)
+			if err != nil {
+				return err
 			}
-			resp.StatusCode = 200
-			resp.Status = "200 OK"
-			return nil
 		}
 	}
+	contentType := http.DetectContentType(image)
+	encoding := resp.Header.Get("Content-Encoding")
+	encodedBody, err := encodeBodyByContentEncoding(image, encoding)
+	if err != nil {
+		return err
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
+	resp.ContentLength = int64(len(encodedBody))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
+	resp.Header.Set("Content-Type", contentType)
+	if encoding == "" {
+		resp.Header.Del("Content-Encoding")
+	} else {
+		resp.Header.Set("Content-Encoding", encoding)
+	}
+	resp.StatusCode = 200
+	resp.Status = "200 OK"
 	return nil
 }
 
@@ -401,30 +381,21 @@ func hookDetailIntro(resp *http.Response) error {
 	// get id after Items/
 	components := strings.Split(resp.Request.URL.Path, "/")
 	id := components[len(components)-1]
-	if !isLibraryHashID(id) {
-		return nil
-	}
-	log.Println("hookDetailIntro id", id)
-	// 获取真实 collection_id
-	_, ok := getCollectionIDByHashID(id)
+	lib, ok := libraryMap[id]
 	if !ok {
 		return nil
 	}
+	log.Println("hookDetailIntro id", id)
 	var data map[string]interface{}
 	err := json.Unmarshal([]byte(template), &data)
 	if err != nil {
 		return err
 	}
 	// 用库名和 hash id 替换
-	for _, lib := range config.Library {
-		if HashNameToID(lib.Name) == id {
-			data["Name"] = lib.Name
-			data["Id"] = id
-			data["ImageTags"] = map[string]string{
-				"Primary": HashNameToID(lib.Name),
-			}
-			break
-		}
+	data["Name"] = lib.Name
+	data["Id"] = id
+	data["ImageTags"] = map[string]string{
+		"Primary": id,
 	}
 	bodyBytes, err := json.Marshal(data)
 	if err != nil {
@@ -453,32 +424,29 @@ func hookDetails(resp *http.Response) error {
 	log.Println("hookDetails")
 	// get parentId
 	parentId := resp.Request.URL.Query().Get("ParentId")
-	if isLibraryHashID(parentId) {
-		collectionID, ok := getCollectionIDByHashID(parentId)
-		if !ok {
-			return nil
-		}
-		log.Println("collectionID", collectionID)
-		bodyText := getCollectionData(collectionID, resp, nil)
-		bodyBytes, err := json.Marshal(bodyText)
-		if err != nil {
-			return err
-		}
-		encoding := resp.Header.Get("Content-Encoding")
-		encodedBody, err := encodeBodyByContentEncoding(bodyBytes, encoding)
-		if err != nil {
-			return err
-		}
-		resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
-		resp.ContentLength = int64(len(encodedBody))
-		resp.Header.Set("Content-Type", "application/json")
-		resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
-		if encoding == "" {
-			resp.Header.Del("Content-Encoding")
-		} else {
-			resp.Header.Set("Content-Encoding", encoding)
-		}
+	lib, ok := libraryMap[parentId]
+	if !ok {
 		return nil
+	}
+	log.Println("collectionID", lib.CollectionID)
+	bodyText := getCollectionData(lib.CollectionID, resp, nil)
+	bodyBytes, err := json.Marshal(bodyText)
+	if err != nil {
+		return err
+	}
+	encoding := resp.Header.Get("Content-Encoding")
+	encodedBody, err := encodeBodyByContentEncoding(bodyBytes, encoding)
+	if err != nil {
+		return err
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
+	resp.ContentLength = int64(len(encodedBody))
+	resp.Header.Set("Content-Type", "application/json")
+	resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
+	if encoding == "" {
+		resp.Header.Del("Content-Encoding")
+	} else {
+		resp.Header.Set("Content-Encoding", encoding)
 	}
 	return nil
 }
@@ -487,38 +455,35 @@ func hookLatest(resp *http.Response) error {
 	log.Println("hookLatest")
 	// get parentId
 	parentId := resp.Request.URL.Query().Get("ParentId")
-	if isLibraryHashID(parentId) {
-		collectionID, ok := getCollectionIDByHashID(parentId)
-		if !ok {
-			return nil
-		}
-		log.Println("collectionID", collectionID)
-		order := struct {
-			By    string
-			Order string
-		}{
-			By:    "DateCreated,SortName",
-			Order: "Descending",
-		}
-		items := getCollectionData(collectionID, resp, &order)["Items"].([]interface{})
-		bodyBytes, err := json.Marshal(items)
-		if err != nil {
-			return err
-		}
-		encoding := resp.Header.Get("Content-Encoding")
-		encodedBody, err := encodeBodyByContentEncoding(bodyBytes, encoding)
-		if err != nil {
-			return err
-		}
-		resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
-		resp.ContentLength = int64(len(encodedBody))
-		resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
-		if encoding == "" {
-			resp.Header.Del("Content-Encoding")
-		} else {
-			resp.Header.Set("Content-Encoding", encoding)
-		}
+	lib, ok := libraryMap[parentId]
+	if !ok {
 		return nil
+	}
+	log.Println("collectionID", lib.CollectionID)
+	order := struct {
+		By    string
+		Order string
+	}{
+		By:    "DateCreated,SortName",
+		Order: "Descending",
+	}
+	items := getCollectionData(lib.CollectionID, resp, &order)["Items"].([]interface{})
+	bodyBytes, err := json.Marshal(items)
+	if err != nil {
+		return err
+	}
+	encoding := resp.Header.Get("Content-Encoding")
+	encodedBody, err := encodeBodyByContentEncoding(bodyBytes, encoding)
+	if err != nil {
+		return err
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(encodedBody))
+	resp.ContentLength = int64(len(encodedBody))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
+	if encoding == "" {
+		resp.Header.Del("Content-Encoding")
+	} else {
+		resp.Header.Set("Content-Encoding", encoding)
 	}
 	return nil
 }
@@ -835,6 +800,9 @@ func main() {
 		return
 	}
 	config = *cfg
+	for _, lib := range config.Library {
+		libraryMap[HashNameToID(lib.Name)] = lib
+	}
 
 	target, err := url.Parse(config.EmbyServer)
 	if err != nil {
