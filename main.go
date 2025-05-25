@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/andybalholm/brotli"
 	"gopkg.in/yaml.v3"
@@ -454,6 +455,7 @@ func hookDetails(resp *http.Response) error {
 
 func hookLatest(resp *http.Response) error {
 	log.Println("hookLatest")
+	start := time.Now()
 	// get parentId
 	parentId := resp.Request.URL.Query().Get("ParentId")
 	lib, ok := libraryMap[parentId]
@@ -465,8 +467,13 @@ func hookLatest(resp *http.Response) error {
 	query.Set("SortBy", "DateCreated,SortName")
 	query.Set("SortOrder", "Descending")
 	query.Set("Limit", resp.Request.URL.Query().Get("Limit"))
+	log.Println("before getCollectionData")
+	getDataStart := time.Now()
 	items := getCollectionData(lib.CollectionID, resp, query)["Items"].([]interface{})
+	log.Printf("getCollectionData done, cost: %v, items: %d", time.Since(getDataStart), len(items))
+	marshalStart := time.Now()
 	bodyBytes, err := json.Marshal(items)
+	log.Printf("json.Marshal done, cost: %v", time.Since(marshalStart))
 	if err != nil {
 		return err
 	}
@@ -483,6 +490,7 @@ func hookLatest(resp *http.Response) error {
 	} else {
 		resp.Header.Set("Content-Encoding", encoding)
 	}
+	log.Printf("hookLatest total cost: %v", time.Since(start))
 	return nil
 }
 
@@ -652,7 +660,11 @@ func modifyResponse(resp *http.Response) error {
 		if hook.Pattern.MatchString(resp.Request.URL.Path) {
 			log.Println("matched", resp.Request.URL.Path)
 			log.Println("hook", hook.Pattern.String())
-			return hook.Handler(resp)
+			log.Println("hook start", resp.Request.URL.Path)
+			hookStart := time.Now()
+			err := hook.Handler(resp)
+			log.Printf("hook %s cost: %v", resp.Request.URL.Path, time.Since(hookStart))
+			return err
 		}
 	}
 	return nil
