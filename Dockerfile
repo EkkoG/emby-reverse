@@ -22,6 +22,7 @@ COPY . .
 
 RUN mkdir -p mediacovergenerator
 RUN cd mediacovergenerator && ln -s ../justzerock-mp-plugin/plugins.v2/mediacovergenerator/style_multi_1.py style_multi_1.py
+RUN uv pip install -r justzerock-mp-plugin/plugins.v2/mediacovergenerator/requirements.txt
 
 # 拷贝可执行文件和配置、图片等资源
 COPY --from=builder /app/emby-virtual-lib .
