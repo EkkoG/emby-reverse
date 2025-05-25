@@ -12,6 +12,8 @@ if __name__ == "__main__":
         d = base64.b64decode(res)
         with open(f"images/{library_name}.png", "wb") as f:
             f.write(d)
-        img = Image.open(f"images/{library_name}.png")
-        img = img.resize((213, 120), Image.LANCZOS)
-        img.save(f"images/{library_name}.png")
+        file_name = f"images/{library_name}.png"
+        img = Image.open(file_name)
+        img = img.resize((213 * 2, 120 * 2), Image.LANCZOS)
+        img.save(file_name)
+        print(f"save to {file_name}")
