@@ -628,21 +628,25 @@ func hookViews(resp *http.Response) error {
 		newItems = append(newItems, item)
 	}
 	// 根据配置决定是否合并真实库
-	if slices.Contains(config.Hide, "all") {
-		typedItems = []map[string]interface{}{}
+	if len(config.Hide) == 0 {
+		// do nothing
 	} else {
-		// items = newItems // 只显示虚拟库
-		oldItems := []map[string]interface{}{}
-		for _, item := range typedItems {
-			if len(config.Hide) > 0 {
-				if slices.Contains(config.Hide, item["CollectionType"].(string)) {
-					continue
-				} else {
-					oldItems = append(oldItems, item)
+		if slices.Contains(config.Hide, "all") {
+			typedItems = []map[string]interface{}{}
+		} else {
+			// items = newItems // 只显示虚拟库
+			oldItems := []map[string]interface{}{}
+			for _, item := range typedItems {
+				if len(config.Hide) > 0 {
+					if slices.Contains(config.Hide, item["CollectionType"].(string)) {
+						continue
+					} else {
+						oldItems = append(oldItems, item)
+					}
 				}
 			}
+			typedItems = oldItems
 		}
-		typedItems = oldItems
 	}
 	typedItems = append(newItems, typedItems...) // 合并
 	data["Items"] = typedItems
@@ -779,7 +783,7 @@ func getImage(lib *Library, orignalResp *http.Response) error {
 			return err
 		}
 		os.MkdirAll(fmt.Sprintf("images/%s", lib.Name), 0755)
-		err = os.WriteFile(fmt.Sprintf("images/%s/%d.jpg", lib.Name, i + 1), imageBytes, 0644)
+		err = os.WriteFile(fmt.Sprintf("images/%s/%d.jpg", lib.Name, i+1), imageBytes, 0644)
 		if err != nil {
 			return err
 		}
