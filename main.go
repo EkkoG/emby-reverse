@@ -45,11 +45,11 @@ var config Config
 var libraryMap = map[string]Library{}
 
 var (
-	hookViewsRe       = regexp.MustCompile(`^/Users/[^/]+/Views$`)
-	hookLatestRe      = regexp.MustCompile(`^/Users/[^/]+/Items/Latest$`)
-	hookDetailsRe     = regexp.MustCompile(`^/Users/[^/]+/Items$`)
-	hookDetailIntroRe = regexp.MustCompile(`^/Users/[^/]+/Items/\d+$`)
-	hookImageRe       = regexp.MustCompile(`^/Items/\d+/Images/Primary$`)
+	hookViewsRe       = regexp.MustCompile(`/Users/[^/]+/Views$`)
+	hookLatestRe      = regexp.MustCompile(`/Users/[^/]+/Items/Latest$`)
+	hookDetailsRe     = regexp.MustCompile(`/Users/[^/]+/Items$`)
+	hookDetailIntroRe = regexp.MustCompile(`/Users/[^/]+/Items/\d+$`)
+	hookImageRe       = regexp.MustCompile(`/Items/\d+/Images/Primary$`)
 )
 
 type ResponseHook struct {
