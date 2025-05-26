@@ -90,13 +90,13 @@ func HashNameToID(name string) string {
 
 // 获取 userId
 func getUserId(resp *http.Response) string {
-path := resp.Request.URL.Path
+	path := resp.Request.URL.Path
 	parts := strings.Split(path, "/")
 	userId := ""
 	if parts[1] == "emby" {
-	if len(parts) > 3 {
-		userId = parts[3]
-	}
+		if len(parts) > 3 {
+			userId = parts[3]
+		}
 	} else {
 		if len(parts) > 2 {
 			userId = parts[2]
@@ -714,18 +714,30 @@ func encodeBodyByContentEncoding(body []byte, encoding string) ([]byte, error) {
 }
 
 func getImage(lib *Library) error {
-	badgerDB.View(func(txn *badger.Txn) error {
+	alreadyGenerated := false
+	err := badgerDB.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(lib.Name))
 		if err != nil {
-			return err
+			// 只在不是not found时打印
+			if err != badger.ErrKeyNotFound {
+				log.Println("badgerDB.View error", err)
+			}
+			return nil
 		}
 		return item.Value(func(val []byte) error {
 			if string(val) == "1" {
-				return nil
+				log.Println("badgerDB.View item", lib.Name, "already generated")
+				alreadyGenerated = true
 			}
 			return nil
 		})
 	})
+	if err != nil {
+		return err
+	}
+	if alreadyGenerated {
+		return nil
+	}
 
 	items := getCollectionDataWithApi(lib.CollectionID, config.EmbyApiKey)["Items"].([]interface{})
 	itemCount := len(items)
@@ -778,7 +790,7 @@ func getImage(lib *Library) error {
 	cmd.Dir = "."
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		return err
 	}
