@@ -45,11 +45,11 @@ var config Config
 var libraryMap = map[string]Library{}
 
 var (
-	hookViewsRe       = regexp.MustCompile(`^/emby/Users/[^/]+/Views$`)
-	hookLatestRe      = regexp.MustCompile(`^/emby/Users/[^/]+/Items/Latest$`)
-	hookDetailsRe     = regexp.MustCompile(`^/emby/Users/[^/]+/Items$`)
-	hookDetailIntroRe = regexp.MustCompile(`^/emby/Users/[^/]+/Items/\d+$`)
-	hookImageRe       = regexp.MustCompile(`^/emby/Items/\d+/Images/Primary$`)
+	hookViewsRe       = regexp.MustCompile(`^/Users/[^/]+/Views$`)
+	hookLatestRe      = regexp.MustCompile(`^/Users/[^/]+/Items/Latest$`)
+	hookDetailsRe     = regexp.MustCompile(`^/Users/[^/]+/Items$`)
+	hookDetailIntroRe = regexp.MustCompile(`^/Users/[^/]+/Items/\d+$`)
+	hookImageRe       = regexp.MustCompile(`^/Items/\d+/Images/Primary$`)
 )
 
 type ResponseHook struct {
@@ -90,10 +90,17 @@ func HashNameToID(name string) string {
 
 // 获取 userId
 func getUserId(resp *http.Response) string {
-	parts := strings.Split(resp.Request.URL.Path, "/")
+path := resp.Request.URL.Path
+	parts := strings.Split(path, "/")
 	userId := ""
+	if parts[1] == "emby" {
 	if len(parts) > 3 {
 		userId = parts[3]
+	}
+	} else {
+		if len(parts) > 2 {
+			userId = parts[2]
+		}
 	}
 	return userId
 }
