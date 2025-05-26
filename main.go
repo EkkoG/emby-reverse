@@ -147,7 +147,7 @@ func doGetJSON(
 
 // 优化 X-Emby 参数处理，优先 originalQuery，其次 header，最后 query
 func setXEmbyParams(query, originalQuery url.Values, header http.Header) {
-	xEmbyKeys := []string{"X-Emby-Client", "X-Emby-Device-Name", "X-Emby-Device-Id", "X-Emby-Client-Version", "X-Emby-Token", "X-Emby-Language"}
+	xEmbyKeys := []string{"X-Emby-Client", "X-Emby-Device-Name", "X-Emby-Device-Id", "X-Emby-Client-Version", "X-Emby-Token", "X-Emby-Language", "X-Emby-Authorization"}
 	for _, key := range xEmbyKeys {
 		val := originalQuery.Get(key)
 		if val == "" {
