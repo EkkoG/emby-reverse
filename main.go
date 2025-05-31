@@ -347,6 +347,8 @@ func hookImage(resp *http.Response) error {
 			return err
 		}
 		image = userImage
+		// 设置缓存响应头
+		resp.Header.Set("Cache-Control", "public, max-age=86400")
 	} else {
 		// image = []byte{}
 		path := fmt.Sprintf("images/%s.png", lib.Name)
@@ -362,6 +364,7 @@ func hookImage(resp *http.Response) error {
 			if err != nil {
 				return err
 			}
+			resp.Header.Set("Cache-Control", "public, max-age=86400")
 		}
 	}
 	contentType := http.DetectContentType(image)
@@ -374,8 +377,6 @@ func hookImage(resp *http.Response) error {
 	resp.ContentLength = int64(len(encodedBody))
 	resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
 	resp.Header.Set("Content-Type", contentType)
-	// 设置缓存响应头
-	resp.Header.Set("Cache-Control", "public, max-age=86400")
 	if encoding == "" {
 		resp.Header.Del("Content-Encoding")
 	} else {
