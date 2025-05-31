@@ -28,6 +28,14 @@ library:
   - name: 所有电视剧
     collection_id: 8961
     image: ./images/tv.png
+  - name: 标签
+    tag_id: 10247
+  - name: 类型
+    genre_id: 246
+  - name: 工作室
+    studio_id: 10242
+  - name: 演员
+    person_id: 10232
 ```
 
 - `emby_server`：你的 Emby 服务器地址
@@ -37,6 +45,10 @@ library:
   - `name`：媒体库显示名称, 须唯一
   - `collection_id`：Emby 实际集合 ID
   - `image`：该库的图片文件路径（用于自定义图片服务）
+  - `tag_id`：Tag ID
+  - `genre_id`：类型 ID
+  - `studio_id`：工作室 ID
+  - `person_id`：演员/导演 ID
 
 ## 构建与运行
 

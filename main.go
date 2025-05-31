@@ -38,7 +38,67 @@ type Config struct {
 type Library struct {
 	Name         string `yaml:"name"`
 	CollectionID string `yaml:"collection_id"`
+	TagID        string `yaml:"tag_id"`
+	GenreID      string `yaml:"genre_id"`
+	StudioID     string `yaml:"studio_id"`
+	PersonID     string `yaml:"person_id"`
 	Image        string `yaml:"image"`
+}
+
+func (l *Library) NeedRecursive() bool {
+	return l.GetType() != "collection"
+}
+
+// 返回类型
+func (l *Library) GetType() string {
+	if l.CollectionID != "" {
+		return "collection"
+	} else if l.TagID != "" {
+		return "tag"
+	} else if l.GenreID != "" {
+		return "genre"
+	} else if l.StudioID != "" {
+		return "studio"
+	} else if l.PersonID != "" {
+		return "person"
+	}
+	return ""
+}
+
+// 返回参数名
+func (l *Library) GetParamKey() string {
+	switch l.GetType() {
+	case "collection":
+		return "ParentId"
+	case "tag":
+		return "TagIds"
+	case "genre":
+		return "GenreIds"
+	case "studio":
+		return "StudioIds"
+	case "person":
+		return "PersonIds"
+	default:
+		return ""
+	}
+}
+
+// 返回 id
+func (l *Library) GetId() string {
+	switch l.GetType() {
+	case "collection":
+		return l.CollectionID
+	case "tag":
+		return l.TagID
+	case "genre":
+		return l.GenreID
+	case "studio":
+		return l.StudioID
+	case "person":
+		return l.PersonID
+	default:
+		return ""
+	}
 }
 
 var config Config
@@ -240,10 +300,13 @@ func ensureCollectionExist(id string, orignalReq *http.Request) bool {
 	return false
 }
 
-func getCollectionDataWithApi(id string, apiKey string) map[string]interface{} {
+func getCollectionDataWithApi(lib Library, apiKey string) map[string]interface{} {
 	query := url.Values{}
-	query.Set("ParentId", id)
+	if lib.GetParamKey() != "" && lib.GetId() != "" {
+		query.Set(lib.GetParamKey(), lib.GetId())
+	}
 	query.Set("ImageTypeLimit", "1")
+	query.Set("Recursive", "true")
 	query.Set("Fields", "BasicSyncInfo,CanDelete,CanDownload,PrimaryImageAspectRatio,ProductionYear,Status,EndDate")
 	query.Set("EnableTotalRecordCount", "true")
 	query.Set("API_KEY", apiKey)
@@ -258,14 +321,22 @@ func getCollectionDataWithApi(id string, apiKey string) map[string]interface{} {
 	return data
 }
 
-// getItems 增加 sort 参数
-func getItems(id string, orignalReq *http.Request, extQuery url.Values) map[string]interface{} {
+// getItems 增加 type 参数，自动根据 id 字段选择参数名
+func getItems(lib Library, orignalReq *http.Request, extQuery url.Values) map[string]interface{} {
 	orignalQuery := orignalReq.URL.Query()
 	query := url.Values{} // 避免污染原始 query
-	query.Set("ParentId", id)
+
+	if lib.GetParamKey() != "" && lib.GetId() != "" {
+		query.Set(lib.GetParamKey(), lib.GetId())
+	}
+	log.Println("getItems query", query)
+
 	query.Set("ImageTypeLimit", orignalQuery.Get("ImageTypeLimit"))
 	query.Set("Fields", orignalQuery.Get("Fields"))
 	query.Set("EnableTotalRecordCount", orignalQuery.Get("EnableTotalRecordCount"))
+	if orignalQuery.Get("Recursive") != "" {
+		query.Set("Recursive", orignalQuery.Get("Recursive"))
+	}
 	if extQuery != nil {
 		for k, v := range extQuery {
 			query.Set(k, v[0])
@@ -439,16 +510,34 @@ func hookDetailIntro(resp *http.Response) error {
 	return nil
 }
 
+// 通用查找函数，根据 parentId、tagId、genreId 返回对应 Library
+func findLibraryByAnyId(parentId, tagId, genreId string) (Library, bool) {
+	if parentId != "" {
+		lib, ok := libraryMap[parentId]
+		return lib, ok
+	}
+	if tagId != "" {
+		lib, ok := libraryMap[tagId]
+		return lib, ok
+	}
+	if genreId != "" {
+		lib, ok := libraryMap[genreId]
+		return lib, ok
+	}
+	return Library{}, false
+}
+
 func hookDetails(resp *http.Response) error {
 	log.Println("hookDetails")
-	// get parentId
 	parentId := resp.Request.URL.Query().Get("ParentId")
-	lib, ok := libraryMap[parentId]
+	tagId := resp.Request.URL.Query().Get("TagIds")
+	genreId := resp.Request.URL.Query().Get("GenreIds")
+	lib, ok := findLibraryByAnyId(parentId, tagId, genreId)
 	if !ok {
 		return nil
 	}
-	log.Println("collectionID", lib.CollectionID)
-	bodyText := getItems(lib.CollectionID, resp.Request, nil)
+	log.Println("collectionID", lib.CollectionID, "tagID", lib.TagID, "genreID", lib.GenreID)
+	bodyText := getItems(lib, resp.Request, nil)
 	bodyBytes, err := json.Marshal(bodyText)
 	if err != nil {
 		return err
@@ -473,20 +562,24 @@ func hookDetails(resp *http.Response) error {
 func hookLatest(resp *http.Response) error {
 	log.Println("hookLatest")
 	start := time.Now()
-	// get parentId
 	parentId := resp.Request.URL.Query().Get("ParentId")
-	lib, ok := libraryMap[parentId]
+	tagId := resp.Request.URL.Query().Get("TagIds")
+	genreId := resp.Request.URL.Query().Get("GenreIds")
+	lib, ok := findLibraryByAnyId(parentId, tagId, genreId)
 	if !ok {
 		return nil
 	}
-	log.Println("collectionID", lib.CollectionID)
+	log.Println("collectionID", lib.CollectionID, "tagID", lib.TagID, "genreID", lib.GenreID)
 	query := url.Values{}
 	query.Set("SortBy", "DateCreated,SortName")
 	query.Set("SortOrder", "Descending")
 	query.Set("Limit", resp.Request.URL.Query().Get("Limit"))
+	if lib.NeedRecursive() {
+		query.Set("Recursive", "true")
+	}
 	log.Println("before getCollectionData")
 	getDataStart := time.Now()
-	items := getItems(lib.CollectionID, resp.Request, query)["Items"].([]interface{})
+	items := getItems(lib, resp.Request, query)["Items"].([]interface{})
 	log.Printf("getCollectionData done, cost: %v, items: %d", time.Since(getDataStart), len(items))
 	marshalStart := time.Now()
 	bodyBytes, err := json.Marshal(items)
@@ -733,10 +826,12 @@ func getImage(lib *Library) error {
 	if alreadyGenerated {
 		return nil
 	}
+	log.Println("cover gen start", lib.Name)
 
-	items := getCollectionDataWithApi(lib.CollectionID, config.EmbyApiKey)["Items"].([]interface{})
+	items := getCollectionDataWithApi(*lib, config.EmbyApiKey)["Items"].([]interface{})
 	itemCount := len(items)
 	if itemCount == 0 {
+		log.Println("no available image", lib.Name)
 		return nil // 没有可用图片
 	}
 

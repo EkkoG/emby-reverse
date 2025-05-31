@@ -13,10 +13,18 @@ hide:
   - boxsets
   - playlists
 library:
-  - name: 所有电影
+  - name: All Movies
     collection_id: 8960
     # if you want to gen lib cover automatically, you should not set image
     image: ./images/Thumb.webp #213 × 120 px 或者相同比例
-  - name: 所有电视剧
+  - name: All TV Shows
     collection_id: 8961
     image: ./images/Thumb.webp #213 × 120 px 或者相同比例
+  - name: Tags
+    tag_id: 10247
+  - name: Genres
+    genre_id: 246
+  - name: Studios
+    studio_id: 10242
+  - name: Actors
+    person_id: 10232

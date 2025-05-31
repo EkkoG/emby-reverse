@@ -30,6 +30,14 @@ library:
   - name: All TV Shows
     collection_id: 8961
     image: ./images/tv.png
+  - name: Tag
+    tag_id: 10247
+  - name: Genre
+    genre_id: 246
+  - name: Studio
+    studio_id: 10242
+  - name: Actor
+    person_id: 10232
 ```
 
 - `emby_server`: Your Emby server address
@@ -39,6 +47,10 @@ library:
   - `name`: Display name of the library (must be unique)
   - `collection_id`: Actual Emby collection ID
   - `image`: Path to the image file for this library (used for custom image service)
+  - `tag_id`: Tag ID
+  - `genre_id`: Genre ID
+  - `studio_id`: Studio ID
+  - `person_id`: Person ID
 
 ## Build & Run
 
