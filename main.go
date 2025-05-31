@@ -785,7 +785,9 @@ func getImage(lib *Library) error {
 	if err != nil {
 		return err
 	}
-	if alreadyGenerated {
+	fileName := fmt.Sprintf("images/%s.png", lib.Name)
+	fileExist, err := os.Stat(fileName)
+	if alreadyGenerated && err == nil && fileExist.Size() > 0 {
 		return nil
 	}
 	log.Println("cover gen start", lib.Name)
