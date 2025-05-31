@@ -89,8 +89,8 @@ func HashNameToID(name string) string {
 }
 
 // 获取 userId
-func getUserId(resp *http.Response) string {
-	path := resp.Request.URL.Path
+func getUserId(req *http.Request) string {
+	path := req.URL.Path
 	parts := strings.Split(path, "/")
 	userId := ""
 	if parts[1] == "emby" {
@@ -159,20 +159,20 @@ func setXEmbyParams(query, originalQuery url.Values, header http.Header) {
 	}
 }
 
-func getAllCollections(boxId string, orignalResp *http.Response) []map[string]interface{} {
-	userId := getUserId(orignalResp)
+func getAllCollections(boxId string, orignalReq *http.Request) []map[string]interface{} {
+	userId := getUserId(orignalReq)
 
 	query := url.Values{}
 	query.Set("ParentId", boxId)
 
-	setXEmbyParams(query, orignalResp.Request.URL.Query(), orignalResp.Request.Header)
+	setXEmbyParams(query, orignalReq.URL.Query(), orignalReq.Header)
 
 	headers := http.Header{}
-	headers.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
-	headers.Set("User-Agent", orignalResp.Request.Header.Get("User-Agent"))
+	headers.Set("Accept-Language", orignalReq.Header.Get("Accept-Language"))
+	headers.Set("User-Agent", orignalReq.Header.Get("User-Agent"))
 	headers.Set("accept", "application/json")
 
-	cookies := orignalResp.Request.Cookies()
+	cookies := orignalReq.Cookies()
 
 	url := embyURL("/emby/Users/{userId}/Items", userId)
 	data, err := doGetJSON(url, query, headers, cookies)
@@ -186,19 +186,19 @@ func getAllCollections(boxId string, orignalResp *http.Response) []map[string]in
 	return collections
 }
 
-func getFirstBoxset(orignalResp *http.Response) map[string]interface{} {
-	userId := getUserId(orignalResp)
+func getFirstBoxset(orignalReq *http.Request) map[string]interface{} {
+	userId := getUserId(orignalReq)
 
 	query := url.Values{}
 
-	setXEmbyParams(query, orignalResp.Request.URL.Query(), orignalResp.Request.Header)
+	setXEmbyParams(query, orignalReq.URL.Query(), orignalReq.Header)
 
 	headers := http.Header{}
-	headers.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
-	headers.Set("User-Agent", orignalResp.Request.Header.Get("User-Agent"))
+	headers.Set("Accept-Language", orignalReq.Header.Get("Accept-Language"))
+	headers.Set("User-Agent", orignalReq.Header.Get("User-Agent"))
 	headers.Set("accept", "application/json")
 
-	cookies := orignalResp.Request.Cookies()
+	cookies := orignalReq.Cookies()
 
 	url := embyURL("/emby/Users/{userId}/Views", userId)
 	data, err := doGetJSON(url, query, headers, cookies)
@@ -218,14 +218,14 @@ func getFirstBoxset(orignalResp *http.Response) map[string]interface{} {
 	return boxsets
 }
 
-func ensureCollectionExist(id string, orignalResp *http.Response) bool {
-	boxsets := getFirstBoxset(orignalResp)
+func ensureCollectionExist(id string, orignalReq *http.Request) bool {
+	boxsets := getFirstBoxset(orignalReq)
 	if boxsets == nil {
 		log.Println("boxsets is nil")
 		return false
 	}
 	collectionId := boxsets["Id"].(string)
-	collections := getAllCollections(collectionId, orignalResp)
+	collections := getAllCollections(collectionId, orignalReq)
 	if len(collections) == 0 {
 		log.Println("collections is empty")
 		return false
@@ -258,16 +258,9 @@ func getCollectionDataWithApi(id string, apiKey string) map[string]interface{} {
 	return data
 }
 
-// getCollectionData 增加 sort 参数
-func getCollectionData(id string, orignalResp *http.Response, extQuery url.Values) map[string]interface{} {
-	// if !ensureCollectionExist(id, orignalResp) {
-	// 	log.Println("collection not exist, will return empty collection", id)
-	// 	emptyCollection := map[string]interface{}{}
-	// 	emptyCollection["Items"] = []interface{}{}
-	// 	return emptyCollection
-	// }
-
-	orignalQuery := orignalResp.Request.URL.Query()
+// getItems 增加 sort 参数
+func getItems(id string, orignalReq *http.Request, extQuery url.Values) map[string]interface{} {
+	orignalQuery := orignalReq.URL.Query()
 	query := url.Values{} // 避免污染原始 query
 	query.Set("ParentId", id)
 	query.Set("ImageTypeLimit", orignalQuery.Get("ImageTypeLimit"))
@@ -282,16 +275,16 @@ func getCollectionData(id string, orignalResp *http.Response, extQuery url.Value
 		query.Set("SortOrder", orignalQuery.Get("SortOrder"))
 	}
 
-	setXEmbyParams(query, orignalResp.Request.URL.Query(), orignalResp.Request.Header)
+	setXEmbyParams(query, orignalReq.URL.Query(), orignalReq.Header)
 
 	headers := http.Header{}
-	headers.Set("Accept-Language", orignalResp.Request.Header.Get("Accept-Language"))
-	headers.Set("User-Agent", orignalResp.Request.Header.Get("User-Agent"))
+	headers.Set("Accept-Language", orignalReq.Header.Get("Accept-Language"))
+	headers.Set("User-Agent", orignalReq.Header.Get("User-Agent"))
 	headers.Set("accept", "application/json")
 
-	cookies := orignalResp.Request.Cookies()
+	cookies := orignalReq.Cookies()
 
-	userId := getUserId(orignalResp)
+	userId := getUserId(orignalReq)
 	url := embyURL("/emby/Users/{userId}/Items", userId)
 	data, err := doGetJSON(url, query, headers, cookies)
 	if err != nil {
@@ -455,7 +448,7 @@ func hookDetails(resp *http.Response) error {
 		return nil
 	}
 	log.Println("collectionID", lib.CollectionID)
-	bodyText := getCollectionData(lib.CollectionID, resp, nil)
+	bodyText := getItems(lib.CollectionID, resp.Request, nil)
 	bodyBytes, err := json.Marshal(bodyText)
 	if err != nil {
 		return err
@@ -493,7 +486,7 @@ func hookLatest(resp *http.Response) error {
 	query.Set("Limit", resp.Request.URL.Query().Get("Limit"))
 	log.Println("before getCollectionData")
 	getDataStart := time.Now()
-	items := getCollectionData(lib.CollectionID, resp, query)["Items"].([]interface{})
+	items := getItems(lib.CollectionID, resp.Request, query)["Items"].([]interface{})
 	log.Printf("getCollectionData done, cost: %v, items: %d", time.Since(getDataStart), len(items))
 	marshalStart := time.Now()
 	bodyBytes, err := json.Marshal(items)
