@@ -25,19 +25,25 @@ hide:
   - playlists
 library:
   - name: All Movies
-    collection_id: 8960
+    resource_id: 8960
+    resource_type: collection
     image: ./images/movie.png
   - name: All TV Shows
-    collection_id: 8961
+    resource_id: 8961
+    resource_type: collection
     image: ./images/tv.png
   - name: Tag
-    tag_id: 10247
+    resource_id: 10247
+    resource_type: tag
   - name: Genre
-    genre_id: 246
+    resource_id: 246
+    resource_type: genre
   - name: Studio
-    studio_id: 10242
+    resource_id: 10242
+    resource_type: studio
   - name: Actor
-    person_id: 10232
+    resource_id: 10232
+    resource_type: person
 ```
 
 - `emby_server`: Your Emby server address
@@ -45,12 +51,9 @@ library:
 - `hide`: (optional, default: empty) If set, the program will hide the libraries in Emby views.
 - `library`: List of virtual libraries to inject. Each library must include:
   - `name`: Display name of the library (must be unique)
-  - `collection_id`: Actual Emby collection ID
+  - `resource_id`: Resource id, the meaning of id is different according to resource_type
+  - `resource_type`: Resource type, optional values: `collection`, `tag`, `genre`, `studio`, `person`
   - `image`: Path to the image file for this library (used for custom image service)
-  - `tag_id`: Tag ID
-  - `genre_id`: Genre ID
-  - `studio_id`: Studio ID
-  - `person_id`: Person ID
 
 ## Build & Run
 

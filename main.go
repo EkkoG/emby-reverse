@@ -37,37 +37,18 @@ type Config struct {
 
 type Library struct {
 	Name         string `yaml:"name"`
-	CollectionID string `yaml:"collection_id"`
-	TagID        string `yaml:"tag_id"`
-	GenreID      string `yaml:"genre_id"`
-	StudioID     string `yaml:"studio_id"`
-	PersonID     string `yaml:"person_id"`
+	ResourceID   string `yaml:"resource_id"`
+	ResourceType string `yaml:"resource_type"`
 	Image        string `yaml:"image"`
 }
 
 func (l *Library) NeedRecursive() bool {
-	return l.GetType() != "collection"
-}
-
-// 返回类型
-func (l *Library) GetType() string {
-	if l.CollectionID != "" {
-		return "collection"
-	} else if l.TagID != "" {
-		return "tag"
-	} else if l.GenreID != "" {
-		return "genre"
-	} else if l.StudioID != "" {
-		return "studio"
-	} else if l.PersonID != "" {
-		return "person"
-	}
-	return ""
+	return l.ResourceType != "collection"
 }
 
 // 返回参数名
 func (l *Library) GetParamKey() string {
-	switch l.GetType() {
+	switch l.ResourceType {
 	case "collection":
 		return "ParentId"
 	case "tag":
@@ -78,24 +59,6 @@ func (l *Library) GetParamKey() string {
 		return "StudioIds"
 	case "person":
 		return "PersonIds"
-	default:
-		return ""
-	}
-}
-
-// 返回 id
-func (l *Library) GetId() string {
-	switch l.GetType() {
-	case "collection":
-		return l.CollectionID
-	case "tag":
-		return l.TagID
-	case "genre":
-		return l.GenreID
-	case "studio":
-		return l.StudioID
-	case "person":
-		return l.PersonID
 	default:
 		return ""
 	}
@@ -302,8 +265,8 @@ func ensureCollectionExist(id string, orignalReq *http.Request) bool {
 
 func getCollectionDataWithApi(lib Library, apiKey string) map[string]interface{} {
 	query := url.Values{}
-	if lib.GetParamKey() != "" && lib.GetId() != "" {
-		query.Set(lib.GetParamKey(), lib.GetId())
+	if lib.GetParamKey() != "" && lib.ResourceID != "" {
+		query.Set(lib.GetParamKey(), lib.ResourceID)
 	}
 	query.Set("ImageTypeLimit", "1")
 	query.Set("Recursive", "true")
@@ -326,8 +289,8 @@ func getItems(lib Library, orignalReq *http.Request, extQuery url.Values) map[st
 	orignalQuery := orignalReq.URL.Query()
 	query := url.Values{} // 避免污染原始 query
 
-	if lib.GetParamKey() != "" && lib.GetId() != "" {
-		query.Set(lib.GetParamKey(), lib.GetId())
+	if lib.GetParamKey() != "" && lib.ResourceID != "" {
+		query.Set(lib.GetParamKey(), lib.ResourceID)
 	}
 	log.Println("getItems query", query)
 
@@ -536,7 +499,6 @@ func hookDetails(resp *http.Response) error {
 	if !ok {
 		return nil
 	}
-	log.Println("collectionID", lib.CollectionID, "tagID", lib.TagID, "genreID", lib.GenreID)
 	bodyText := getItems(lib, resp.Request, nil)
 	bodyBytes, err := json.Marshal(bodyText)
 	if err != nil {
@@ -569,7 +531,6 @@ func hookLatest(resp *http.Response) error {
 	if !ok {
 		return nil
 	}
-	log.Println("collectionID", lib.CollectionID, "tagID", lib.TagID, "genreID", lib.GenreID)
 	query := url.Values{}
 	query.Set("SortBy", "DateCreated,SortName")
 	query.Set("SortOrder", "Descending")

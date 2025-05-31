@@ -14,17 +14,23 @@ hide:
   - playlists
 library:
   - name: All Movies
-    collection_id: 8960
+    resource_id: 8960
+    resource_type: collection
     # if you want to gen lib cover automatically, you should not set image
     image: ./images/Thumb.webp #213 × 120 px 或者相同比例
   - name: All TV Shows
-    collection_id: 8961
+    resource_id: 8961
+    resource_type: collection
     image: ./images/Thumb.webp #213 × 120 px 或者相同比例
   - name: Tags
-    tag_id: 10247
+    resource_id: 10247
+    resource_type: tag
   - name: Genres
-    genre_id: 246
+    resource_id: 246
+    resource_type: genre
   - name: Studios
-    studio_id: 10242
+    resource_id: 10242
+    resource_type: studio
   - name: Actors
-    person_id: 10232
+    resource_id: 10232
+    resource_type: person
