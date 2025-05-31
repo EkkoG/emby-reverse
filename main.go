@@ -347,6 +347,8 @@ func hookImage(resp *http.Response) error {
 	resp.ContentLength = int64(len(encodedBody))
 	resp.Header.Set("Content-Length", strconv.Itoa(len(encodedBody)))
 	resp.Header.Set("Content-Type", contentType)
+	// 设置缓存响应头
+	resp.Header.Set("Cache-Control", "public, max-age=86400")
 	if encoding == "" {
 		resp.Header.Del("Content-Encoding")
 	} else {
