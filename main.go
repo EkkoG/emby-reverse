@@ -269,7 +269,9 @@ func getCollectionDataWithApi(lib Library, apiKey string) map[string]interface{}
 		query.Set(lib.GetParamKey(), lib.ResourceID)
 	}
 	query.Set("ImageTypeLimit", "1")
-	query.Set("Recursive", "true")
+	if lib.NeedRecursive() {
+		query.Set("Recursive", "true")
+	}
 	query.Set("Fields", "BasicSyncInfo,CanDelete,CanDownload,PrimaryImageAspectRatio,ProductionYear,Status,EndDate")
 	query.Set("EnableTotalRecordCount", "true")
 	query.Set("API_KEY", apiKey)
@@ -294,11 +296,12 @@ func getItems(lib Library, orignalReq *http.Request, extQuery url.Values) map[st
 	}
 	log.Println("getItems query", query)
 
+	query.Set("IncludeItemTypes", "Movie,Series,Video,Game,MusicAlbum")
 	query.Set("ImageTypeLimit", orignalQuery.Get("ImageTypeLimit"))
 	query.Set("Fields", orignalQuery.Get("Fields"))
 	query.Set("EnableTotalRecordCount", orignalQuery.Get("EnableTotalRecordCount"))
-	if orignalQuery.Get("Recursive") != "" {
-		query.Set("Recursive", orignalQuery.Get("Recursive"))
+	if lib.NeedRecursive() {
+		query.Set("Recursive", "true")
 	}
 	if extQuery != nil {
 		for k, v := range extQuery {
