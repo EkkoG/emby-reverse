@@ -300,6 +300,9 @@ func getItems(lib Library, orignalReq *http.Request, extQuery url.Values) map[st
 	query.Set("ImageTypeLimit", orignalQuery.Get("ImageTypeLimit"))
 	query.Set("Fields", orignalQuery.Get("Fields"))
 	query.Set("EnableTotalRecordCount", orignalQuery.Get("EnableTotalRecordCount"))
+	if orignalQuery.Get("Filters") != "" {
+		query.Set("Filters", orignalQuery.Get("Filters"))
+	}
 	if lib.NeedRecursive() {
 		query.Set("Recursive", "true")
 	}
