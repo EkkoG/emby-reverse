@@ -518,6 +518,7 @@ func hookLatest(resp *http.Response) error {
 	query.Set("SortBy", "DateCreated,SortName")
 	query.Set("SortOrder", "Descending")
 	query.Set("Limit", resp.Request.URL.Query().Get("Limit"))
+	query.Set("IsPlayed", "false")
 	if lib.NeedRecursive() {
 		query.Set("Recursive", "true")
 	}
