@@ -477,29 +477,10 @@ func hookDetailIntro(resp *http.Response) error {
 	return nil
 }
 
-// 通用查找函数，根据 parentId、tagId、genreId 返回对应 Library
-func findLibraryByAnyId(parentId, tagId, genreId string) (Library, bool) {
-	if parentId != "" {
-		lib, ok := libraryMap[parentId]
-		return lib, ok
-	}
-	if tagId != "" {
-		lib, ok := libraryMap[tagId]
-		return lib, ok
-	}
-	if genreId != "" {
-		lib, ok := libraryMap[genreId]
-		return lib, ok
-	}
-	return Library{}, false
-}
-
 func hookDetails(resp *http.Response) error {
 	log.Println("hookDetails")
 	parentId := resp.Request.URL.Query().Get("ParentId")
-	tagId := resp.Request.URL.Query().Get("TagIds")
-	genreId := resp.Request.URL.Query().Get("GenreIds")
-	lib, ok := findLibraryByAnyId(parentId, tagId, genreId)
+	lib, ok := libraryMap[parentId]
 	if !ok {
 		return nil
 	}
@@ -529,9 +510,7 @@ func hookLatest(resp *http.Response) error {
 	log.Println("hookLatest")
 	start := time.Now()
 	parentId := resp.Request.URL.Query().Get("ParentId")
-	tagId := resp.Request.URL.Query().Get("TagIds")
-	genreId := resp.Request.URL.Query().Get("GenreIds")
-	lib, ok := findLibraryByAnyId(parentId, tagId, genreId)
+	lib, ok := libraryMap[parentId]
 	if !ok {
 		return nil
 	}
