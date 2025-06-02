@@ -303,7 +303,8 @@ func getItems(lib Library, orignalReq *http.Request, extQuery url.Values) map[st
 	log.Debug("getItems orignalReq url query ", orignalReq.URL.Query())
 	log.Debug("getItems extQuery ", extQuery)
 
-	query.Set("IncludeItemTypes", "Movie,Series,Video,Game,MusicAlbum")
+	// 为了过滤掉非电影、电视剧、视频、游戏、音乐专辑、剧集的资源，比如合集、播放列表等，主要是以原生流派为数据源时会出现
+	query.Set("IncludeItemTypes", "Movie,Series,Video,Game,MusicAlbum,Episode")
 	query.Set("ImageTypeLimit", orignalQuery.Get("ImageTypeLimit"))
 	query.Set("Fields", orignalQuery.Get("Fields"))
 	query.Set("EnableTotalRecordCount", orignalQuery.Get("EnableTotalRecordCount"))
