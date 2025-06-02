@@ -559,7 +559,7 @@ func hookViews(resp *http.Response) error {
 		"CanDelete": false,
 		"CanDownload": false,
 		"ChildCount": 1,
-		"CollectionType": "tvshows",
+		"CollectionType": "VirtualLibrary",
 		"DateCreated": "2025-04-19T09:07:17.0000000Z",
 		"DisplayPreferencesId": "470c3d1e3b5e4a0287ad485a5cf67207",
 		"Etag": "8281abb37d32a2b95db7e5a5df4407a4",
