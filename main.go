@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
-	"log"
 	"math/rand"
 	"net"
 	"net/http"
@@ -24,12 +23,14 @@ import (
 
 	"github.com/andybalholm/brotli"
 	"github.com/dgraph-io/badger/v4"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
 
 // ================== Config Struct ==================
 type Config struct {
 	EmbyServer string    `yaml:"emby_server"`
+	LogLevel   string    `yaml:"log_level"`
 	EmbyApiKey string    `yaml:"emby_api_key"`
 	Hide       []string  `yaml:"hide"`
 	Library    []Library `yaml:"library"`
@@ -244,22 +245,22 @@ func getFirstBoxset(orignalReq *http.Request) map[string]interface{} {
 func ensureCollectionExist(id string, orignalReq *http.Request) bool {
 	boxsets := getFirstBoxset(orignalReq)
 	if boxsets == nil {
-		log.Println("boxsets is nil")
+		log.Info("boxsets is nil")
 		return false
 	}
 	collectionId := boxsets["Id"].(string)
 	collections := getAllCollections(collectionId, orignalReq)
 	if len(collections) == 0 {
-		log.Println("collections is empty")
+		log.Info("collections is empty")
 		return false
 	}
 	for _, collection := range collections {
 		if collection["Id"].(string) == id {
-			log.Println("collection exist", id)
+			log.Info("collection exist", id)
 			return true
 		}
 	}
-	log.Println("collection not exist", id)
+	log.Info("collection not exist", id)
 	return false
 }
 
@@ -294,7 +295,7 @@ func getItems(lib Library, orignalReq *http.Request, extQuery url.Values) map[st
 	if lib.GetParamKey() != "" && lib.ResourceID != "" {
 		query.Set(lib.GetParamKey(), lib.ResourceID)
 	}
-	log.Println("getItems query", query)
+	log.Debug("getItems query", query)
 
 	query.Set("IncludeItemTypes", "Movie,Series,Video,Game,MusicAlbum")
 	query.Set("ImageTypeLimit", orignalQuery.Get("ImageTypeLimit"))
@@ -330,12 +331,12 @@ func getItems(lib Library, orignalReq *http.Request, extQuery url.Values) map[st
 	if err != nil {
 		return nil
 	}
-	log.Println("getCollectionData data count", len(data["Items"].([]interface{})))
+	log.Debug("getCollectionData data count", len(data["Items"].([]interface{})))
 	return data
 }
 
 func hookImage(resp *http.Response) error {
-	log.Println("hookImage")
+	log.Debug("hookImage")
 	// get tag
 	tag := resp.Request.URL.Query().Get("tag")
 	if tag == "" {
@@ -345,7 +346,7 @@ func hookImage(resp *http.Response) error {
 	if !ok {
 		return nil
 	}
-	log.Println("hookImage tag", tag)
+	log.Debug("hookImage tag", tag)
 	var image []byte
 	if lib.Image != "" {
 		userImage, err := os.ReadFile(lib.Image)
@@ -445,7 +446,7 @@ func hookDetailIntro(resp *http.Response) error {
 	if !ok {
 		return nil
 	}
-	log.Println("hookDetailIntro id", id)
+	log.Debug("hookDetailIntro id", id)
 	var data map[string]interface{}
 	err := json.Unmarshal([]byte(template), &data)
 	if err != nil {
@@ -481,7 +482,7 @@ func hookDetailIntro(resp *http.Response) error {
 }
 
 func hookDetails(resp *http.Response) error {
-	log.Println("hookDetails")
+	log.Debug("hookDetails")
 	parentId := resp.Request.URL.Query().Get("ParentId")
 	lib, ok := libraryMap[parentId]
 	if !ok {
@@ -510,7 +511,7 @@ func hookDetails(resp *http.Response) error {
 }
 
 func hookLatest(resp *http.Response) error {
-	log.Println("hookLatest")
+	log.Debug("hookLatest")
 	start := time.Now()
 	parentId := resp.Request.URL.Query().Get("ParentId")
 	lib, ok := libraryMap[parentId]
@@ -525,13 +526,13 @@ func hookLatest(resp *http.Response) error {
 	if lib.NeedRecursive() {
 		query.Set("Recursive", "true")
 	}
-	log.Println("before getCollectionData")
+	log.Debug("before getCollectionData")
 	getDataStart := time.Now()
 	items := getItems(lib, resp.Request, query)["Items"].([]interface{})
-	log.Printf("getCollectionData done, cost: %v, items: %d", time.Since(getDataStart), len(items))
+	log.Debugf("getCollectionData done, cost: %v, items: %d", time.Since(getDataStart), len(items))
 	marshalStart := time.Now()
 	bodyBytes, err := json.Marshal(items)
-	log.Printf("json.Marshal done, cost: %v", time.Since(marshalStart))
+	log.Debugf("json.Marshal done, cost: %v", time.Since(marshalStart))
 	if err != nil {
 		return err
 	}
@@ -548,7 +549,7 @@ func hookLatest(resp *http.Response) error {
 	} else {
 		resp.Header.Set("Content-Encoding", encoding)
 	}
-	log.Printf("hookLatest total cost: %v", time.Since(start))
+	log.Debugf("hookLatest total cost: %v", time.Since(start))
 	return nil
 }
 
@@ -588,10 +589,10 @@ func hookViews(resp *http.Response) error {
 			"Played": false
 		}
 	}`
-	log.Println("hookViews")
+	log.Debug("hookViews")
 	var bodyBytes []byte
 	var err error
-	log.Println("resp.Header.Get(Content-Encoding)", resp.Header.Get("Content-Encoding"))
+	log.Debug("resp.Header.Get(Content-Encoding)", resp.Header.Get("Content-Encoding"))
 	if resp.Header.Get("Content-Encoding") == "br" {
 		br := brotli.NewReader(resp.Body)
 		bodyBytes, err = io.ReadAll(br)
@@ -603,11 +604,11 @@ func hookViews(resp *http.Response) error {
 	} else if resp.Header.Get("Content-Encoding") == "gzip" {
 		gz, err := gzip.NewReader(resp.Body)
 		if err != nil {
-			log.Println("gzip.NewReader error", err)
+			log.Warn("gzip.NewReader error", err)
 		}
 		bodyBytes, err = io.ReadAll(gz)
 		if err != nil {
-			log.Println("io.ReadAll error", err)
+			log.Warn("io.ReadAll error", err)
 		}
 		resp.Body.Close()
 	} else {
@@ -620,7 +621,7 @@ func hookViews(resp *http.Response) error {
 	var data map[string]interface{}
 	err = json.Unmarshal(bodyBytes, &data)
 	if err != nil {
-		log.Println("json.Unmarshal error", err)
+		log.Warn("json.Unmarshal error", err)
 		resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 		return nil
 	}
@@ -636,7 +637,7 @@ func hookViews(resp *http.Response) error {
 		typedItems = append(typedItems, item.(map[string]interface{}))
 	}
 	serverId := typedItems[0]["ServerId"].(string)
-	log.Println("Items count", len(typedItems))
+	log.Debug("Items count", len(typedItems))
 	// 遍历 config.Library，生成 item
 	var newItems []map[string]interface{}
 	for _, lib := range config.Library {
@@ -702,12 +703,12 @@ func hookViews(resp *http.Response) error {
 func modifyResponse(resp *http.Response) error {
 	for _, hook := range responseHooks {
 		if hook.Pattern.MatchString(resp.Request.URL.Path) {
-			log.Println("matched", resp.Request.URL.Path)
-			log.Println("hook", hook.Pattern.String())
-			log.Println("hook start", resp.Request.URL.Path)
+			log.Debug("matched", resp.Request.URL.Path)
+			log.Debug("hook", hook.Pattern.String())
+			log.Debug("hook start", resp.Request.URL.Path)
 			hookStart := time.Now()
 			err := hook.Handler(resp)
-			log.Printf("hook %s cost: %v", resp.Request.URL.Path, time.Since(hookStart))
+			log.Debugf("hook %s cost: %v", resp.Request.URL.Path, time.Since(hookStart))
 			return err
 		}
 	}
@@ -756,13 +757,13 @@ func getImage(lib *Library) error {
 		if err != nil {
 			// 只在不是not found时打印
 			if err != badger.ErrKeyNotFound {
-				log.Println("badgerDB.View error", err)
+				log.Warn("badgerDB.View error", err)
 			}
 			return nil
 		}
 		return item.Value(func(val []byte) error {
 			if string(val) == "1" {
-				log.Println("badgerDB.View item", lib.Name, "already generated")
+				log.Debug("badgerDB.View item", lib.Name, "already generated")
 				alreadyGenerated = true
 			}
 			return nil
@@ -776,12 +777,12 @@ func getImage(lib *Library) error {
 	if alreadyGenerated && err == nil && fileExist.Size() > 0 {
 		return nil
 	}
-	log.Println("cover gen start", lib.Name)
+	log.Debug("cover gen start", lib.Name)
 
 	items := getCollectionDataWithApi(*lib, config.EmbyApiKey)["Items"].([]interface{})
 	itemCount := len(items)
 	if itemCount == 0 {
-		log.Println("no available image", lib.Name)
+		log.Debug("no available image", lib.Name)
 		return nil // 没有可用图片
 	}
 
@@ -842,28 +843,43 @@ func getImage(lib *Library) error {
 }
 
 func main() {
+	cfg, err := LoadConfig("config.yaml")
+	if err != nil {
+		log.Warn("LoadConfig error", err)
+		return
+	}
+	config = *cfg
+
+	// 设置日志级别
+	switch strings.ToLower(config.LogLevel) {
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	case "warn":
+		log.SetLevel(log.WarnLevel)
+	case "error":
+		log.SetLevel(log.ErrorLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp: true,
+	})
+
 	// 初始化 Badger
-	var err error
 	badgerDB, err = badger.Open(badger.DefaultOptions("images/badger_db").WithLogger(nil))
 	if err != nil {
-		log.Println("badger open error", err)
+		log.Warn("badger open error", err)
 		return
 	}
 	defer badgerDB.Close()
 
-	cfg, err := LoadConfig("config.yaml")
-	if err != nil {
-		log.Println("LoadConfig error", err)
-		return
-	}
-	config = *cfg
 	for _, lib := range config.Library {
 		libraryMap[HashNameToID(lib.Name)] = lib
 	}
 
 	target, err := url.Parse(config.EmbyServer)
 	if err != nil {
-		log.Println("url.Parse error", err)
+		log.Warn("url.Parse error", err)
 		return
 	}
 
@@ -915,11 +931,11 @@ func main() {
 			// getImage 需要调整为接收这些参数
 			err := getImage(&l)
 			if err != nil {
-				log.Println("getImage error", err)
+				log.Warn("getImage error", err)
 			}
 		}(libCopy)
 	}
 
-	log.Println("emby-virtual-lib listen on :8000")
+	log.Info("emby-virtual-lib listen on :8000")
 	http.ListenAndServe(":8000", nil)
 }

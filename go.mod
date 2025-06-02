@@ -7,6 +7,7 @@ toolchain go1.23.9
 require (
 	github.com/andybalholm/brotli v1.1.1
 	github.com/dgraph-io/badger/v4 v4.7.0
+	github.com/sirupsen/logrus v1.9.3
 	gopkg.in/yaml.v3 v3.0.1
 )
 

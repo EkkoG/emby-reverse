@@ -14,6 +14,7 @@
 
 ```yaml
 emby_server: http://192.168.33.120:8096
+log_level: info
 emby_api_key: 1234567890
 hide:
   - music
@@ -46,6 +47,7 @@ library:
 
 - `emby_server`：你的 Emby 服务器地址
 - `emby_api_key`：（可选，默认空）如果希望自动生成媒体库封面，则需要设置 Emby API Key
+- `log_level`：（可选，默认 info）日志级别，可选值：`debug`、`info`、`warn`、`error`
 - `hide`：（可选，默认空）如果希望隐藏某些媒体库，则可以设置该选项
 - `library`：要注入的虚拟媒体库列表，每个库需包含：
   - `name`：媒体库显示名称, 须唯一
