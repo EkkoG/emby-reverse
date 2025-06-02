@@ -142,7 +142,7 @@ server {
     server_name your.domain.com;
 
         # 只将 /emby/Users/<id>/Views、/Items、/Items/Latest 等需要 hook 的 API 反代到 emby-virtual-lib
-        location ~ ^/emby/Users/[^/]+/(Views|Items|Items/Latest) {
+        location ~ /Users/[^/]+/(Views|Items|Items/Latest) {
                 proxy_pass http://emby_virtual_lib;
                 proxy_redirect          off;
                 proxy_buffering         off;
@@ -153,7 +153,7 @@ server {
         }
 
         # 只将图片 hook 到 emby-virtual-lib
-        location ~ ^/emby/Items/[^/]+/Images/Primary {
+        location ~ /Items/[^/]+/Images/Primary {
                 proxy_pass http://emby_virtual_lib;
                 proxy_redirect          off;
                 proxy_buffering         off;

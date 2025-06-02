@@ -144,7 +144,7 @@ server {
     server_name your.domain.com;
 
         # only proxy /emby/Users/<id>/Views、/Items、/Items/Latest to emby-virtual-lib
-        location ~ ^/emby/Users/[^/]+/(Views|Items|Items/Latest) {
+        location ~ /Users/[^/]+/(Views|Items|Items/Latest) {
                 proxy_pass http://emby_virtual_lib;
                 proxy_redirect          off;
                 proxy_buffering         off;
@@ -155,7 +155,7 @@ server {
         }
 
         # only proxy image to emby-virtual-lib
-        location ~ ^/emby/Items/[^/]+/Images/Primary {
+        location ~ /Items/[^/]+/Images/Primary {
                 proxy_pass http://emby_virtual_lib;
                 proxy_redirect          off;
                 proxy_buffering         off;
