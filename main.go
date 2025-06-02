@@ -174,12 +174,12 @@ func setXEmbyParams(query, originalQuery url.Values, headers http.Header, origin
 	xEmbyKeys := []string{"X-Emby-Client", "X-Emby-Device-Name", "X-Emby-Device-Id", "X-Emby-Client-Version", "X-Emby-Token", "X-Emby-Language", "X-Emby-Authorization"}
 	for _, key := range xEmbyKeys {
 		val := originalQuery.Get(key)
-		if val == "" {
-			val = originalHeaders.Get(key)
+		if val != "" {
+			query.Set(key, val)
 		}
 		headerVal := originalHeaders.Get(key)
-		if headerVal == "" {
-			headers.Set(key, val)
+		if headerVal != "" {
+			headers.Set(key, headerVal)
 		}
 	}
 }
@@ -644,7 +644,7 @@ func hookViews(resp *http.Response) error {
 		typedItems = append(typedItems, item.(map[string]interface{}))
 	}
 	serverId := typedItems[0]["ServerId"].(string)
-	log.Debug("Items count", len(typedItems))
+	log.Debug("Items count ", len(typedItems))
 	// 遍历 config.Library，生成 item
 	var newItems []map[string]interface{}
 	for _, lib := range config.Library {
@@ -685,6 +685,7 @@ func hookViews(resp *http.Response) error {
 		}
 	}
 	typedItems = append(newItems, typedItems...) // 合并
+	log.Debug("new view items count ", len(typedItems))
 	data["Items"] = typedItems
 	newBody, err := json.Marshal(data)
 	if err != nil {
