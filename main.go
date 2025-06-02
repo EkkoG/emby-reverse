@@ -170,15 +170,16 @@ func doGetJSON(
 }
 
 // 优化 X-Emby 参数处理，优先 originalQuery，其次 header，最后 query
-func setXEmbyParams(query, originalQuery url.Values, header http.Header) {
+func setXEmbyParams(query, originalQuery url.Values, headers http.Header, originalHeaders http.Header) {
 	xEmbyKeys := []string{"X-Emby-Client", "X-Emby-Device-Name", "X-Emby-Device-Id", "X-Emby-Client-Version", "X-Emby-Token", "X-Emby-Language", "X-Emby-Authorization"}
 	for _, key := range xEmbyKeys {
 		val := originalQuery.Get(key)
 		if val == "" {
-			val = header.Get(key)
+			val = originalHeaders.Get(key)
 		}
-		if val != "" {
-			query.Set(key, val)
+		headerVal := originalHeaders.Get(key)
+		if headerVal == "" {
+			headers.Set(key, val)
 		}
 	}
 }
@@ -189,9 +190,9 @@ func getAllCollections(boxId string, orignalReq *http.Request) []map[string]inte
 	query := url.Values{}
 	query.Set("ParentId", boxId)
 
-	setXEmbyParams(query, orignalReq.URL.Query(), orignalReq.Header)
-
 	headers := http.Header{}
+	setXEmbyParams(query, orignalReq.URL.Query(), headers, orignalReq.Header)
+
 	headers.Set("Accept-Language", orignalReq.Header.Get("Accept-Language"))
 	headers.Set("User-Agent", orignalReq.Header.Get("User-Agent"))
 	headers.Set("accept", "application/json")
@@ -215,9 +216,9 @@ func getFirstBoxset(orignalReq *http.Request) map[string]interface{} {
 
 	query := url.Values{}
 
-	setXEmbyParams(query, orignalReq.URL.Query(), orignalReq.Header)
-
 	headers := http.Header{}
+	setXEmbyParams(query, orignalReq.URL.Query(), headers, orignalReq.Header)
+
 	headers.Set("Accept-Language", orignalReq.Header.Get("Accept-Language"))
 	headers.Set("User-Agent", orignalReq.Header.Get("User-Agent"))
 	headers.Set("accept", "application/json")
@@ -295,7 +296,12 @@ func getItems(lib Library, orignalReq *http.Request, extQuery url.Values) map[st
 	if lib.GetParamKey() != "" && lib.ResourceID != "" {
 		query.Set(lib.GetParamKey(), lib.ResourceID)
 	}
-	log.Debug("getItems query", query)
+	log.Debug("getItems query ", query)
+	log.Debug("getItems orignalReq header ", orignalReq.Header)
+	log.Debug("getItems orignalReq url ", orignalReq.URL)
+	log.Debug("getItems orignalReq url path ", orignalReq.URL.Path)
+	log.Debug("getItems orignalReq url query ", orignalReq.URL.Query())
+	log.Debug("getItems extQuery ", extQuery)
 
 	query.Set("IncludeItemTypes", "Movie,Series,Video,Game,MusicAlbum")
 	query.Set("ImageTypeLimit", orignalQuery.Get("ImageTypeLimit"))
@@ -316,9 +322,10 @@ func getItems(lib Library, orignalReq *http.Request, extQuery url.Values) map[st
 		query.Set("SortOrder", orignalQuery.Get("SortOrder"))
 	}
 
-	setXEmbyParams(query, orignalReq.URL.Query(), orignalReq.Header)
-
 	headers := http.Header{}
+	setXEmbyParams(query, orignalReq.URL.Query(), headers, orignalReq.Header)
+	log.Debug("getItems query after setXEmbyParams ", query)
+
 	headers.Set("Accept-Language", orignalReq.Header.Get("Accept-Language"))
 	headers.Set("User-Agent", orignalReq.Header.Get("User-Agent"))
 	headers.Set("accept", "application/json")
