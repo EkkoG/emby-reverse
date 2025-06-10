@@ -350,8 +350,18 @@ func hookImage(resp *http.Response) error {
 	if tag == "" {
 		tag = resp.Request.URL.Query().Get("Tag")
 	}
+	if tag == "" {
+		components := strings.Split(resp.Request.URL.Path, "/")
+		// http://192.168.33.120:8096/Items/2122802865/Images/Primary
+		tag = components[2]
+	}
+	log.Debug("hookImage tag ", tag)
+	if tag == "" {
+		return nil
+	}
 	lib, ok := libraryMap[tag]
 	if !ok {
+		log.Warn("hookImage tag not found ", tag)
 		return nil
 	}
 	log.Debug("hookImage tag", tag)
