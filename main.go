@@ -73,7 +73,7 @@ var (
 	hookLatestRe      = regexp.MustCompile(`/Users/[^/]+/Items/Latest$`)
 	hookDetailsRe     = regexp.MustCompile(`/Users/[^/]+/Items$`)
 	hookDetailIntroRe = regexp.MustCompile(`/Users/[^/]+/Items/\d+$`)
-	hookImageRe       = regexp.MustCompile(`/Items/\d+/Images/Primary$`)
+	hookImageRe       = regexp.MustCompile(`/Items/\d+/Images/(P|p)rimary$`)
 )
 
 type ResponseHook struct {
