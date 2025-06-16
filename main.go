@@ -505,6 +505,7 @@ func hookDetails(resp *http.Response) error {
 	lib, ok := libraryMap[parentId]
 	if !ok {
 		// 网易爆米花通过 Users/xxx/Items 获取数据，所以需要特殊处理
+		// 又因很多 API 都通过 Users/xxx/Items + *Id 参数获取数据，所以需要过滤掉这些 API 调用
 		// 遍历 query，如果 key 没有以 Id 结尾，则返回
 		hasId := false
 		for key := range resp.Request.URL.Query() {
