@@ -504,6 +504,18 @@ func hookDetails(resp *http.Response) error {
 	parentId := resp.Request.URL.Query().Get("ParentId")
 	lib, ok := libraryMap[parentId]
 	if !ok {
+		// 网易爆米花通过 Users/xxx/Items 获取数据，所以需要特殊处理
+		// 遍历 query，如果 key 没有以 Id 结尾，则返回
+		hasId := false
+		for key := range resp.Request.URL.Query() {
+			if strings.HasSuffix(key, "Id") {
+				hasId = true
+				break
+			}
+		}
+		if !hasId {
+			return hookViews(resp)
+		}
 		return nil
 	}
 	bodyText := getItems(lib, resp.Request, nil)
