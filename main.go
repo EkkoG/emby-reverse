@@ -550,7 +550,7 @@ func hookLatest(resp *http.Response) error {
 		return nil
 	}
 	query := url.Values{}
-	query.Set("SortBy", "DateCreated,SortName")
+	query.Set("SortBy", "DateLastContentAdded,SortName")
 	query.Set("SortOrder", "Descending")
 	query.Set("Limit", resp.Request.URL.Query().Get("Limit"))
 	query.Set("IsPlayed", "false")
